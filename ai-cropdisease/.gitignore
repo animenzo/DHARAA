@@ -1,0 +1,39 @@
+# Virtual Environment
+venv/
+.venv/
+
+# Environment Variables
+.env
+
+# Python Cache
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+
+# Models
+
+models/*.h5
+
+models/*.joblib
+models/*.pt
+models/*.pth
+
+# Training Data
+train/plantvillage/
+train/Crop_recommendation.csv
+
+# Logs
+*.log
+logs/
+
+# IDE
+.vscode/
+.idea/
+
+# Temporary
+tmp/
+temp/
+
+# Notes
+cmds.txt

@@ -1,0 +1,35 @@
+from pathlib import Path
+
+
+BASE_DIR = Path(__file__).resolve().parent
+MOISTURE_PREDICTION_DATASET_DIR = BASE_DIR / "Moisture_Prediction_Dataset"
+
+FUTURE_PREDICTION_CSV = MOISTURE_PREDICTION_DATASET_DIR / "future_10_day_prediction.csv"
+DAILY_WEATHER_CSV = BASE_DIR / "weather_model" / "exports" / "weather_10day_forecast.csv"
+HOURLY_WEATHER_CSV = BASE_DIR / "weather_model" / "exports" / "hourly_weather_10day.csv"
+CROP_SCHEDULE_CSV = MOISTURE_PREDICTION_DATASET_DIR / "crop_schedule.csv"
+TODAY_STATE_CSV = MOISTURE_PREDICTION_DATASET_DIR / "today_state.csv"
+SOIL_DATASET_CSV = BASE_DIR / "data_set" / "soildataset.csv"
+WEATHER_MODEL_SCRIPT = BASE_DIR / "wethermodel3" / "wether_model.py"
+
+MOISTURE_THRESHOLD = 0.2176
+DEFAULT_FIELD_AREA_M2 = 1.0
+DEFAULT_TANK_WATER_LITER = 200.0
+DEFAULT_IRRIGATION_CYCLE_DAYS = 40
+DEFAULT_IRRIGATION_SEASON = "summer"
+DEFAULT_BUFFER_PERCENT_OF_FC = 0.20
+
+LATITUDE = 24.5887106
+LONGITUDE = 73.734616
+FORECAST_DAYS = 14
+
+CROP_NAME = "Maize"
+SOIL_TEXTURE = "Loam"
+SOWING_DATE = "2026-05-01"
+# PREDICTION_TODAY = date.today().isoformat()
+PREDICTION_TODAY = "2026-06-28"
+
+SENSOR_VALUE = 0.2334
+
+RAIN_PROBABILITY_COLUMN = "Rain_Prob"
+WEATHER_DATE_COLUMN = "date"
