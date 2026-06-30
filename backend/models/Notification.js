@@ -99,7 +99,7 @@ notificationSchema.index({ user: 1, createdAt: -1 });
 // Auto-delete notifications older than 30 days
 notificationSchema.index(
   { createdAt: 1 },
-  { expireAfterSeconds: 30 * 24 * 60 * 60 }
+  { expireAfterSeconds: 5 * 24 * 60 * 60 }
 );
 
 module.exports = mongoose.model("Notification", notificationSchema);

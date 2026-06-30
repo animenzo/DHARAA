@@ -63,4 +63,8 @@ commandLogSchema.index({ user: 1, issuedAt: -1 });
 commandLogSchema.index({ farm: 1, issuedAt: -1 });
 commandLogSchema.index({ device: 1, actuator: 1, value: 1, issuedAt: -1 });
 
+commandLogSchema.index(
+    { createdAt: 1 },
+  { expireAfterSeconds: 5 * 24 * 60 * 60 }
+);
 module.exports = mongoose.model("CommandLog", commandLogSchema);

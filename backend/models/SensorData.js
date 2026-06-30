@@ -157,5 +157,10 @@ sensorDataSchema.index({ user: 1, recordedAt: -1 });
 
 // Farm-level analytics: "daily moisture average for farm Z"
 sensorDataSchema.index({ farm: 1, recordedAt: -1 });
+// Automatically delete sensor data after 10 minutes
+sensorDataSchema.index(
+    { recordedAt: 1 },
+    { expireAfterSeconds: 600 }
+);
 
 module.exports = mongoose.model("SensorData", sensorDataSchema);

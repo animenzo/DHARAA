@@ -45,7 +45,7 @@ const io = new Server(server, {
   cors: {
     origin: [
       "http://localhost:5173",
-      "https://cropsense-ruddy.vercel.app"
+      "https://dharaa-three.vercel.app"
     ],
     credentials: true
   }
@@ -61,7 +61,7 @@ app.use(
   cors({
     origin: [
       "http://localhost:5173",
-      "https://cropsense-ruddy.vercel.app"
+      "https://dharaa-three.vercel.app"
     ],
     credentials: true
   })
@@ -86,31 +86,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-/* ---------------- SOCKET EVENTS ---------------- */
 
-// io.on("connection", (socket) => {
-
-//   console.log(
-//     `Socket Connected: ${socket.id}`
-//   );
-
-//   socket.on(
-//     "disconnect",
-//     () => {
-
-
-//       console.log(
-//         `Socket Disconnected: ${socket.id}`
-//       );
-
-//     }
-
-
-//   );
-
-// });
-
-/* Make io available everywhere */
 
 app.set("io", io);
 initSocketService(io);
@@ -151,72 +127,7 @@ app.get("/", (req, res) => {
 
 });
 
-/* ---------------- DATABASE ---------------- */
 
-// async function connectDB() {
-
-//   try {
-
-// await mongoose.connect(
-//   process.env.MONGO_URI
-// );
-
-// console.log(
-//   "MongoDB connected"
-// );
-
-// /* Start MQTT */
-
-// initializeMQTT(io);
-
-// console.log(
-//   "MQTT initialized"
-// );
-
-// /* Start Device Monitor */
-
-// startMonitor();
-
-// console.log(
-//   "Device monitor started"
-// );
-
-
-//   }
-//   catch (error) {
-
-// console.log(
-//   "MongoDB connection error:",
-//   error
-// );
-
-// process.exit(1);
-
-
-//   }
-
-// }
-
-// connectDB();
-
-/* ---------------- SERVER ---------------- */
-
-// const PORT =
-//   process.env.PORT || 5000;
-
-// server.listen(
-//   PORT,
-//   "0.0.0.0",
-//   () => {
-
-
-//     console.log(
-//       `Server running on port ${PORT}`
-//     );
-
-
-//   }
-// );
 
 const PORT = process.env.PORT || 5000;
 
@@ -275,8 +186,3 @@ process.on("SIGINT", async () => {
 
 startServer();
 
-// module.exports = {
-//   app,
-//   server,
-//   io
-// };

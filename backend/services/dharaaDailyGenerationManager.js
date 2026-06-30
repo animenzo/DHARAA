@@ -5,7 +5,7 @@ const {
   generateAndStoreForFarm,
 } = require("./smartIrrigationFarmSyncService");
 
-const DAILY_CRON = "33 10 * * *";
+const DAILY_CRON = "30 23 * * *";
 const DEFAULT_TIMEZONE = process.env.DHARAA_CRON_TIMEZONE || "Asia/Kolkata";
 
 let dailyGenerationTask = null;
