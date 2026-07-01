@@ -13,7 +13,7 @@ __pycache__/
 
 # Models
 
-models/*.h5
+
 
 models/*.joblib
 models/*.pt
