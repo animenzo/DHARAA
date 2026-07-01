@@ -36,6 +36,11 @@ function extractList(payload, key) {
   return toArray(payload?.[key]);
 }
 
+function getId(value) {
+  if (!value) return null;
+  return typeof value === "object" ? value._id || value.id : value;
+}
+
 function useRelativeTime(date) {
   const [now, setNow] = useState(null);
 
@@ -68,6 +73,7 @@ export default function IoTDashboard() {
   const [liveWeather, setLiveWeather] = useState(null);
 
   const [schedules, setSchedules] = useState([]);
+  const [aiAutoEnabled, setAiAutoEnabled] = useState(false);
 
 
   const [loading] = useState(false);
@@ -80,7 +86,10 @@ export default function IoTDashboard() {
         const res = await API.get("/farms/farm");
         const farmList = extractList(res.data, "farms");
         setFarms(farmList);
-        if (farmList.length > 0) setSelectedFarm(farmList[0]);
+        if (farmList.length > 0) {
+          setSelectedFarm(farmList[0]);
+          setAiAutoEnabled(Boolean(farmList[0].aiAutoEnabled));
+        }
       } catch (e) {
         console.error("Init Error", e);
       }
@@ -107,8 +116,21 @@ export default function IoTDashboard() {
     const farmId = e.target.value;
     const farm = farms.find((f) => f._id === farmId);
     setSelectedFarm(farm);
+    setAiAutoEnabled(Boolean(farm?.aiAutoEnabled));
 
   };
+
+  const handleAiModeChange = useCallback((enabled) => {
+    setAiAutoEnabled(Boolean(enabled));
+    setSelectedFarm((currentFarm) =>
+      currentFarm ? { ...currentFarm, aiAutoEnabled: Boolean(enabled) } : currentFarm
+    );
+    setFarms((currentFarms) =>
+      currentFarms.map((farm) =>
+        farm._id === farmId ? { ...farm, aiAutoEnabled: Boolean(enabled) } : farm
+      )
+    );
+  }, [farmId]);
 
   // ── Weather load: FIX — use farm.coordinates instead of geocoding a string ─
   useEffect(() => {
@@ -151,6 +173,14 @@ export default function IoTDashboard() {
   }, [selectedFarm]);
 
   // ── Schedule helpers (unchanged) ────────────────────────────────────────────
+  const { data: smartIrrigationResult, isLoading: smartIrrigationLoading } = useQuery({
+    queryKey: ["smartIrrigationResult", farmId],
+    queryFn: () => getSmartIrrigationResult(farmId),
+    enabled: !!farmId,
+    refetchInterval: 60_000,
+    retry: 1,
+  });
+
   const getNextRunDate = (schedule) => {
     if (!schedule?.days || !schedule.time) return null;
     const now = new Date();
@@ -166,15 +196,47 @@ export default function IoTDashboard() {
     return null;
   };
 
-  let nextSchedule = null;
-  let nextDate = null;
-  schedules.forEach((schedule) => {
+  const getAiScheduleDate = (result) => {
+    const scheduledAt = result?.execution?.scheduledAt;
+    if (scheduledAt) {
+      const date = new Date(scheduledAt);
+      if (!Number.isNaN(date.getTime())) return date;
+    }
+
+    const schedule = result?.schedule;
+    if (!schedule?.selected_date || !schedule?.selected_time) return null;
+
+    const selectedDate = String(schedule.selected_date).split("T")[0];
+    const date = new Date(`${selectedDate}T${schedule.selected_time}:00`);
+    return Number.isNaN(date.getTime()) ? null : date;
+  };
+
+  const manualSchedules = schedules.filter((schedule) => {
+    if (!farmId) return true;
+    const scheduleFarmId = getId(schedule.farmId || schedule.farm);
+    return !scheduleFarmId || scheduleFarmId?.toString() === farmId?.toString();
+  });
+
+  let manualNextSchedule = null;
+  let manualNextDate = null;
+  manualSchedules.forEach((schedule) => {
     const scheduleDate = getNextRunDate(schedule);
-    if (scheduleDate && (!nextDate || scheduleDate < nextDate)) {
-      nextDate = scheduleDate;
-      nextSchedule = schedule;
+    if (scheduleDate && (!manualNextDate || scheduleDate < manualNextDate)) {
+      manualNextDate = scheduleDate;
+      manualNextSchedule = schedule;
     }
   });
+
+  const aiNextDate = getAiScheduleDate(smartIrrigationResult);
+  const aiNextSchedule = smartIrrigationResult?.schedule && aiNextDate
+    ? {
+      name: smartIrrigationResult.schedule.status || "AI Generated Schedule",
+    }
+    : null;
+
+  const nextSchedule = aiAutoEnabled ? aiNextSchedule : manualNextSchedule;
+  const nextDate = aiAutoEnabled ? aiNextDate : manualNextDate;
+  const scheduleModeLabel = aiAutoEnabled ? "AI Next Run" : "Manual Next Run";
 
   const formattedDateString = nextDate
     ? nextDate.toLocaleString("en-US", {
@@ -188,15 +250,6 @@ export default function IoTDashboard() {
 
   // ── Device metadata (name, topics, template) ──────────────────────────────
   // staleTime is high — we only need this for display info, not status gating.
-
-  const { data: smartIrrigationResult, isLoading: smartIrrigationLoading } = useQuery({
-    queryKey: ["smartIrrigationResult", farmId],
-    queryFn: () => getSmartIrrigationResult(farmId),
-    enabled: !!farmId,
-    refetchInterval: 60_000,
-    retry: 1,
-  });
-
 
   // ── Live device status ────────────────────────────────────────────────────
   // Destructure BOTH status (string for display) AND isOnline (bool for gating).
@@ -268,7 +321,7 @@ export default function IoTDashboard() {
                   </span>
                   <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 border border-slate-200">
                     <FaRulerCombined className="text-blue-500" />{" "}
-                    {formatFarmAreaAcres(selectedFarm)} Acres
+                    {formatFarmAreaAcres(selectedFarm)} Meter sq.
                   </span>
                   <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 border border-slate-200">
                     <FaMapMarkerAlt className="text-red-400" />{" "}
@@ -372,6 +425,7 @@ export default function IoTDashboard() {
             latest={latest}
             isOnline={isOnline}
             deviceStatus={liveStatus}
+            onModeChange={handleAiModeChange}
           />
           <WaterTankCard
             percent={latest?.waterLevelPercent}
@@ -404,7 +458,7 @@ export default function IoTDashboard() {
           <div className="bg-white border border-slate-100 p-5 rounded-[2rem] shadow-sm flex flex-col justify-center text-center">
             <div className="flex items-center justify-center gap-2 text-slate-400 mb-2">
               <FaCalendarAlt />
-              <span className="text-xs font-bold uppercase">Next Run</span>
+              <span className="text-xs font-bold uppercase">{scheduleModeLabel}</span>
             </div>
             {nextSchedule ? (
               <div>
@@ -412,7 +466,9 @@ export default function IoTDashboard() {
                 <p className="text-xs text-slate-500 font-medium bg-slate-50 inline-block px-3 py-1 rounded-full mt-2">{nextSchedule.name}</p>
               </div>
             ) : (
-              <p className="text-slate-400 font-bold text-sm">No Schedule</p>
+              <p className="text-slate-400 font-bold text-sm">
+                {aiAutoEnabled ? "No AI Schedule" : "No Manual Schedule"}
+              </p>
             )}
             <button onClick={() => navigate("/schedules/new")} className="mt-4 text-xs font-bold text-blue-500 hover:underline">
               Manage Schedules

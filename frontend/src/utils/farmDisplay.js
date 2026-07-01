@@ -25,7 +25,7 @@ export function getFarmAreaAcres(farm) {
     return Number(farm?.size_acres) || 0;
   }
 
-  return areaM2 / 4046.8564224;
+  return areaM2 ;
 }
 
 export function formatFarmAreaAcres(farm) {

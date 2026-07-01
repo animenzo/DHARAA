@@ -129,6 +129,7 @@ export default function ActuatorPanel({
   latest,
   isOnline = false,    // ← NEW: single bool from useDeviceStatus().isOnline
   deviceStatus = "unknown", // kept for header badge display
+  onModeChange,
 }) {
     const physicalBtn = latest?.physicalBtn ?? 0;
   const [mode, setMode] = useState("manual");
@@ -209,6 +210,7 @@ const handlePumpModalConfirm = () => {
  const handleModeChange = async (newMode) => {
   // Optimistically update the UI immediately.
   setMode(newMode);
+  onModeChange?.(newMode === "ai");
   try {
     await API.patch(`/iot/${farmId}/ai-mode`, {
       enabled: newMode === "ai",
@@ -219,7 +221,11 @@ const handlePumpModalConfirm = () => {
     console.error("Failed to persist AI mode:", err);
     // Revert to whichever mode was active before this click.
     // Using functional form avoids stale-closure over `mode`.
-    setMode(prev => (prev === "ai" ? "manual" : "ai"));
+    setMode(prev => {
+      const revertedMode = prev === "ai" ? "manual" : "ai";
+      onModeChange?.(revertedMode === "ai");
+      return revertedMode;
+    });
   }
 };
 
@@ -230,10 +236,12 @@ const handlePumpModalConfirm = () => {
       .then(res => {
         // res.data may be the farm directly or { farm: ... } depending on controller
         const farm = res.data?.farm ?? res.data;
-        setMode(farm?.aiAutoEnabled ? "ai" : "manual");
+        const isAiMode = Boolean(farm?.aiAutoEnabled);
+        setMode(isAiMode ? "ai" : "manual");
+        onModeChange?.(isAiMode);
       })
       .catch(() => {});
-  }, [farmId]);
+  }, [farmId, onModeChange]);
   useEffect(() => {
   setPumpState(latest?.pump ?? 0);
 }, [latest?.pump]);
@@ -249,11 +257,12 @@ const handlePumpModalConfirm = () => {
       // Only update if the event is for the farm this panel is showing.
       if (changedFarmId?.toString() !== farmId?.toString()) return;
       setMode(aiAutoEnabled ? "ai" : "manual");
+      onModeChange?.(Boolean(aiAutoEnabled));
     };
 
     socket.on("aiModeChanged", onAiModeChanged);
     return () => socket.off("aiModeChanged", onAiModeChanged);
-  }, [socket, isRoomJoined, farmId]);
+  }, [socket, isRoomJoined, farmId, onModeChange]);
 
   console.log(latest?.pump, typeof latest?.pump);
   return (

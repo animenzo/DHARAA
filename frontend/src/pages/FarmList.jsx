@@ -33,9 +33,9 @@ const FarmCard = ({ farm, onEdit, onDelete }) => {
         className={`h-3 w-full ${farm.status === "Active" ? "bg-emerald-500" : "bg-gray-300"}`}
       />
 
-      <div className="p-6">
+      <div className="p-4">
         {/* Header: Name & Status */}
-        <div className="flex justify-between items-start mb-4">
+        <div className="flex justify-between items-start mb-2">
           <div>
             <h3 className="text-xl font-bold text-gray-800 group-hover:text-emerald-700 transition-colors">
               {farm.name}
@@ -75,13 +75,13 @@ const FarmCard = ({ farm, onEdit, onDelete }) => {
             </div>
             <p className="font-bold text-gray-800">
               {formatFarmAreaAcres(farm)}{" "}
-              <span className="text-xs font-normal text-gray-500">Acres</span>
+              <span className="text-xs font-normal text-gray-500">Meter Sq.</span>
             </p>
           </div>
         </div>
 
         {/* Soil Badge */}
-        <div className="flex items-center gap-2 mb-6 text-sm text-gray-600 bg-gray-50 px-3 py-2 rounded-lg inline-block w-full">
+        <div className="flex items-center gap-2 mb-2 text-sm text-gray-600 bg-gray-50 px-3 py-2 rounded-lg inline-block w-full">
           {/* CHANGE HERE */}
           <GiGroundSprout className="text-amber-600 text-lg" />
           <span className="font-medium">Soil:</span>
@@ -209,7 +209,7 @@ const FarmList = () => {
         </div>
       ) : (
         // Grid List
-        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        <div className="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-6">
           {farms.map((farm) => (
             <FarmCard
               key={farm._id}

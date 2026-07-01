@@ -262,10 +262,10 @@ export default function UserProfile() {
                           {farm.name}
                         </p>
 
-                        <p className="text-xs text-slate-500">
+                        {/* <p className="text-xs text-slate-500">
                           Device ID:
-                          {farm.deviceId || "Not Assigned"}
-                        </p>
+                          {device.deviceId || "Not Assigned"}
+                        </p> */}
                       </div>
                     </div>
                   ))}
@@ -275,11 +275,11 @@ export default function UserProfile() {
                 <FieldRow label="Hardware" value={device.hardwareType || "ESP32"} />
                 <FieldRow label="Status" value={device.status} />
                 <FieldRow label="Active" value={device.isActive ? "Yes — has connected" : "Not yet connected"} />
-                <FieldRow label="Firmware" value={device.firmwareVersion || "unknown"} mono />
-                <FieldRow
+                {/* <FieldRow label="Firmware" value={device.firmwareVersion || "unknown"} mono /> */}
+                {/* <FieldRow
                   label="Last Seen"
                   value={device.lastSeen ? new Date(device.lastSeen).toLocaleString() : "Never"}
-                />
+                /> */}
               </Card>
             )}
 
@@ -297,7 +297,7 @@ export default function UserProfile() {
           <div className="lg:col-span-2 space-y-5">
 
             {/* MQTT Credentials */}
-            <Card>
+            {/* <Card>
               <SectionTitle
                 icon={FaKey}
                 title="MQTT Credentials"
@@ -309,10 +309,10 @@ export default function UserProfile() {
               <FieldRow label="Broker Port" value={String(brokerPort)} mono copyable />
 
 
-            </Card>
+            </Card> */}
 
             {/* MQTT Topics */}
-            <Card>
+            {/* <Card>
               <SectionTitle
                 icon={FaWifi}
                 title="MQTT Topic Structure"
@@ -344,7 +344,7 @@ export default function UserProfile() {
                 <p className="text-xs text-slate-400 text-center py-4">Topics not generated yet. Provision a device first.</p>
               )}
 
-              {/* ACK topic info */}
+              
               {topics.cmd && (
                 <div className="mt-3 bg-indigo-50 rounded-xl p-3 flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
@@ -359,7 +359,7 @@ export default function UserProfile() {
                   <CopyButton text={`${topics.cmd}/ack`} />
                 </div>
               )}
-            </Card>
+            </Card> */}
 
             {/* Template & Sensors */}
             {template && (
@@ -397,13 +397,12 @@ export default function UserProfile() {
             )}
 
             {/* ESP32 Connection Guide */}
-            <Card>
+            {/* <Card>
               <SectionTitle
                 icon={FaTerminal}
                 title="ESP32 Connection Guide"
                 subtitle="Copy this into your Arduino firmware"
               />
-
               <button
                 onClick={() => setShowArduino(v => !v)}
                 className="w-full flex items-center justify-between text-xs font-semibold text-emerald-600 hover:text-emerald-700 bg-emerald-50 rounded-xl px-4 py-3 mb-4 transition-colors"
@@ -423,7 +422,7 @@ export default function UserProfile() {
                 </div>
               )}
 
-              {/* Step-by-step guide */}
+              
               <div className="mt-4 space-y-3">
                 {[
                   { step: "1", title: "Install PubSubClient", desc: "In Arduino IDE: Sketch → Include Library → Manage Libraries → search 'PubSubClient' by Nick O'Leary" },
@@ -445,7 +444,7 @@ export default function UserProfile() {
                 ))}
               </div>
 
-              {/* Payload example */}
+             
               <div className="mt-5">
                 <p className="text-xs font-semibold text-slate-600 mb-2">Example Sensor Payload (JSON → MQTT /data)</p>
                 <pre className="bg-slate-50 border border-slate-200 text-slate-600 text-[11px] font-mono p-4 rounded-xl overflow-x-auto">
@@ -461,7 +460,7 @@ export default function UserProfile() {
 }`}
                 </pre>
               </div>
-            </Card>
+            </Card> */}
 
           </div>
         </div>
