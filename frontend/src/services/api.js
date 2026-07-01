@@ -1,5 +1,20 @@
 import axios from "axios";
 
+const LOCAL_API_URL = "http://localhost:5000";
+const envApiUrl = import.meta.env.VITE_API_URL;
+const isLocalhost =
+  typeof window !== "undefined" && window.location.hostname === "localhost";
+
+const API_BASE_URL = isLocalhost
+  ? envApiUrl || LOCAL_API_URL
+  : envApiUrl || "";
+
+if (!isLocalhost && !envApiUrl) {
+  console.error(
+    "Missing VITE_API_URL. Set it in Vercel to your deployed backend URL."
+  );
+}
+
 /**
  * Main API instance (for normal requests)
  */
@@ -12,17 +27,14 @@ import axios from "axios";
 //   baseURL: import.meta.env.VITE_API_URL || "http://localhost:5000",
 // });
 const API = axios.create({
-  baseURL:
-    window.location.hostname === "localhost"
-      ? "http://localhost:5000"
-      : import.meta.env.VITE_API_URL,
+  baseURL: API_BASE_URL,
 });
 /**
  * Separate instance for refresh token
  * (NO interceptors to avoid infinite loop)
  */
 const refreshAPI = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "http://localhost:5000",
+  baseURL: API_BASE_URL,
 });
 // 
 /**

@@ -79,6 +79,11 @@ const GROWTH_STAGES = [
 
 const EMPTY_SOIL = Object.fromEntries(CROP_FIELDS.map((f) => [f.key, ""]));
 
+function extractList(payload, key) {
+  if (Array.isArray(payload)) return payload;
+  return Array.isArray(payload?.[key]) ? payload[key] : [];
+}
+
 // ─── Active Tool Panel IDs ─────────────────────────────────────────────────
 const TOOLS = {
   NONE: null,
@@ -534,13 +539,15 @@ const handleWeatherAdvice = async () => {
 
 
   useEffect(() => {
-    API.get("/farm")
+    API.get("/farms/farm")
       .then((res) => {
-        const list = res.data?.farms || res.data || [];
+        const list = extractList(res.data, "farms");
         setFarms(list);
         if (list.length > 0) setSelectedFarmId(list[0]._id);
       })
-      .catch(() => { });
+      .catch(() => {
+        setFarms([]);
+      });
   }, []);
 
   // ══════════════════════════════════════════════════════════════════════

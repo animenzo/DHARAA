@@ -8,8 +8,12 @@ import { useAuth } from "./AuthContext";
 const SocketContext = createContext(null);
 
 // ─── Socket.IO server URL ─────────────────────────────────────────────────────
+const isLocalhost =
+  typeof window !== "undefined" && window.location.hostname === "localhost";
 const SOCKET_URL =
-  import.meta.env.VITE_SOCKET_URL || "http://localhost:5000";
+  import.meta.env.VITE_SOCKET_URL ||
+  import.meta.env.VITE_API_URL ||
+  (isLocalhost ? "http://localhost:5000" : "");
 
 export const SocketProvider = ({ children }) => {
   const { user, isAuthenticated } = useAuth();
@@ -39,6 +43,13 @@ export const SocketProvider = ({ children }) => {
         setIsConnected(false);
         setIsRoomJoined(false);
       }
+      return;
+    }
+
+    if (!SOCKET_URL) {
+      console.warn(
+        "Missing VITE_SOCKET_URL/VITE_API_URL. Realtime updates are disabled."
+      );
       return;
     }
 
