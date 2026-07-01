@@ -54,12 +54,14 @@ export default function RealtimeChart({
   height    = 200,
   selectedSensor = "avg",
 }) {
-      const processedData = chartData.map((row) => {
+  const safeChartData = Array.isArray(chartData) ? chartData : [];
+
+  const processedData = safeChartData.map((row) => {
   let moistureValue = row.avgMoisture;
 
   if (
     selectedSensor !== "avg" &&
-    row.moistureSensors
+    Array.isArray(row.moistureSensors)
   ) {
     moistureValue =
       row.moistureSensors.find(
@@ -85,7 +87,7 @@ export default function RealtimeChart({
     );
   }
 
-  if (chartData.length === 0) {
+  if (safeChartData.length === 0) {
     return (
       <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm flex items-center justify-center" style={{ height: height + 60 }}>
         <p className="text-sm text-gray-400">Waiting for sensor data…</p>
@@ -99,7 +101,7 @@ export default function RealtimeChart({
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
           Live Sensor Data
         </p>
-        <span className="text-[10px] text-gray-400">{chartData.length} readings</span>
+        <span className="text-[10px] text-gray-400">{safeChartData.length} readings</span>
       </div>
 
       <ResponsiveContainer width="100%" height={height}>

@@ -4,6 +4,9 @@ import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa';
 // https://vite.dev/config/
 export default defineConfig({
+  build: {
+    sourcemap: true,
+  },
   plugins: [react(),tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate', // Updates app automatically when new content is available

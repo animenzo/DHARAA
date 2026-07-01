@@ -43,15 +43,16 @@ export function useSensorData(farmId) {
   const liveTimeoutRef = useRef(null);
 
   // ── Helper: normalise a reading for chart/display ──────────────────────────
-  const normalise = (r) => ({
+  const normalise = (r = {}) => ({
     recordedAt: r.recordedAt
       ? new Date(r.recordedAt)
       : new Date(),
 
     avgMoisture: r.avgMoisture ?? null,
 
-    moistureSensors:
-      r.moistureSensors || [],
+    moistureSensors: Array.isArray(r.moistureSensors)
+      ? r.moistureSensors
+      : [],
 
     temperature: r.temperature ?? null,
     humidity: r.humidity ?? null,
@@ -97,7 +98,9 @@ export function useSensorData(farmId) {
         if (cancelled) return;
 
         const latestReading = latestRes.data.reading;
-        const chartReadings = chartRes.data.readings || [];
+        const chartReadings = Array.isArray(chartRes.data?.readings)
+          ? chartRes.data.readings
+          : [];
 
         if (latestReading) {
           setLatest(normalise(latestReading));
@@ -120,7 +123,7 @@ export function useSensorData(farmId) {
 
     fetchInitial();
     return () => { cancelled = true; };
-  }, [farmId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [farmId]);
 
   // ── 2. Socket.IO live updates ──────────────────────────────────────────────
   const handleSensorData = useCallback((data) => {

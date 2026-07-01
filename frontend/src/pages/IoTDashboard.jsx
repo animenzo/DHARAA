@@ -1,5 +1,5 @@
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { useSensorData } from "../hooks/useSensorData";
@@ -9,50 +9,52 @@ import DeviceStatusCard from "../components/iot/DeviceStatusCard";
 import DeviceStatusBanner from "../components/iot/DeviceStatusBanner";
 import SensorDashboard from "../components/iot/SensorDashboard";
 import RealtimeChart from "../components/iot/RealtimeChart";
-import DeviceInfo from "../components/iot/DeviceInfo";
 import MqttStatusBadge from "../components/iot/MqttStatusBadge";
 import ActuatorPanel from "../components/iot/ActuatorPanel";
 import CommandHistoryPanel from "../components/iot/CommandHistoryPanel";
-import MqttCredentialsCard from "../components/iot/MqttCredentialsCard";
 import WaterTankCard from "../components/iot/WaterTankCard";
 
-import axiosInstance from "../services/api";
 import { FaCalendarAlt, FaChevronDown, FaExclamationTriangle, FaLeaf, FaMapMarkerAlt, FaRulerCombined, FaSeedling, FaSync } from "react-icons/fa";
 import {
   getCoordinates,
   getWeatherByCoordinates,
   getWeatherIcon,
 } from "../services/weatherService";
-import { Navigate, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import API from "../services/api";
-import { WiRain } from "react-icons/wi";
 import { useMemo } from "react";
-import iotApi from "../services/iotApi";
 import { formatFarmAreaAcres, getCropLabel } from "../utils/farmDisplay";
 import { getSmartIrrigationResult } from "../services/aiApi";
 import SmartIrrigationCard from "../components/irrigation/SmartIrrigationCard";
 
-async function fetchDevice(farmId) {
-  if (!farmId) return null;
-  const data = await iotApi.getFarmDevice(farmId);
-  return data.device;
+function toArray(value) {
+  return Array.isArray(value) ? value : [];
 }
+
+function extractList(payload, key) {
+  if (Array.isArray(payload)) return payload;
+  return toArray(payload?.[key]);
+}
+
 function useRelativeTime(date) {
-  const [label, setLabel] = useState("—");
+  const [now, setNow] = useState(null);
+
   useEffect(() => {
-    if (!date) { setLabel("—"); return; }
-    const update = () => {
-      const s = Math.floor((Date.now() - new Date(date).getTime()) / 1000);
-      if (s < 5) setLabel("just now");
-      else if (s < 60) setLabel(`${s}s ago`);
-      else if (s < 3600) setLabel(`${Math.floor(s / 60)}m ago`);
-      else setLabel(`${Math.floor(s / 3600)}h ago`);
+    const initialId = setTimeout(() => setNow(Date.now()), 0);
+    const id = setInterval(() => setNow(Date.now()), 5000);
+    return () => {
+      clearTimeout(initialId);
+      clearInterval(id);
     };
-    update();
-    const id = setInterval(update, 5000);
-    return () => clearInterval(id);
-  }, [date]);
-  return label;
+  }, []);
+
+  if (!date || now === null) return "-";
+
+  const seconds = Math.floor((now - new Date(date).getTime()) / 1000);
+  if (seconds < 5) return "just now";
+  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  return `${Math.floor(seconds / 3600)}h ago`;
 }
 
 export default function IoTDashboard() {
@@ -68,7 +70,7 @@ export default function IoTDashboard() {
   const [schedules, setSchedules] = useState([]);
 
 
-  const [loading, setLoading] = useState(false);
+  const [loading] = useState(false);
   const [showAlertsModal, setShowAlertsModal] = useState(false);
 
   const [selectedSensor, setSelectedSensor] = useState("avg");
@@ -76,9 +78,9 @@ export default function IoTDashboard() {
     const init = async () => {
       try {
         const res = await API.get("/farms/farm");
-        const farmList = res.data;
+        const farmList = extractList(res.data, "farms");
         setFarms(farmList);
-        if (farmList && farmList.length > 0) setSelectedFarm(farmList[0]);
+        if (farmList.length > 0) setSelectedFarm(farmList[0]);
       } catch (e) {
         console.error("Init Error", e);
       }
@@ -87,17 +89,20 @@ export default function IoTDashboard() {
   }, []);
 
   // ── Data fetch loop ─────────────────────────────────────────────────────────
-  useEffect(() => {
-    fetchSchedules();
-  }, [selectedFarm]);
-  const fetchSchedules = async () => {
+  const fetchSchedules = useCallback(async () => {
     try {
       const res = await API.get("/schedules/schedule");
-      setSchedules(res.data);
+      setSchedules(extractList(res.data, "schedules"));
     } catch (e) {
       console.error("Schedule Fetch Error", e);
+      setSchedules([]);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const id = setTimeout(fetchSchedules, 0);
+    return () => clearTimeout(id);
+  }, [fetchSchedules, selectedFarm]);
   const handleFarmChange = (e) => {
     const farmId = e.target.value;
     const farm = farms.find((f) => f._id === farmId);
@@ -163,7 +168,7 @@ export default function IoTDashboard() {
 
   let nextSchedule = null;
   let nextDate = null;
-  schedules?.forEach((schedule) => {
+  schedules.forEach((schedule) => {
     const scheduleDate = getNextRunDate(schedule);
     if (scheduleDate && (!nextDate || scheduleDate < nextDate)) {
       nextDate = scheduleDate;
@@ -183,16 +188,6 @@ export default function IoTDashboard() {
 
   // ── Device metadata (name, topics, template) ──────────────────────────────
   // staleTime is high — we only need this for display info, not status gating.
-
-
-  const { data: device, isLoading: deviceLoading } = useQuery({
-    queryKey: ["iotDevice", farmId],
-    queryFn: () => fetchDevice(farmId),
-    enabled: !!farmId,
-    staleTime: 5 * 60_000,
-    refetchOnWindowFocus: false,
-    retry: 1,
-  });
 
   const { data: smartIrrigationResult, isLoading: smartIrrigationLoading } = useQuery({
     queryKey: ["smartIrrigationResult", farmId],

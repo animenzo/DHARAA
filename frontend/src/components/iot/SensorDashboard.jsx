@@ -78,7 +78,9 @@ export default function SensorDashboard({ latest = null, isLoading = false, sele
   setSelectedSensor, }) {
   const get = (key) => latest?.[key] ?? null;
 
-  const moistureSensors = latest?.moistureSensors || [];
+  const moistureSensors = Array.isArray(latest?.moistureSensors)
+    ? latest.moistureSensors
+    : [];
 
   const selectedMoisture =
     selectedSensor === "avg"
