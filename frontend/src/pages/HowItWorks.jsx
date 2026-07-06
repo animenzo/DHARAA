@@ -17,7 +17,7 @@ const CONTENT = {
   en: {
     hero: {
       eyebrow: "Complete platform guide",
-      title: "How Crop Sense works",
+      title: "How DHARAA works",
       subtitle: "From a tiny sensor in your soil to an AI decision on your phone — every step, explained.",
     },
     sections: [
@@ -26,8 +26,8 @@ const CONTENT = {
         icon: "🌱",
         tag: "Overview",
         tagColor: "emerald",
-        title: "What is Crop Sense?",
-        body: "Crop Sense is an end-to-end precision agriculture platform. IoT sensors buried in your field continuously collect soil and environment data. That data travels wirelessly to our cloud, where AI processes it and delivers plain-language decisions to your phone — so you act before problems occur.",
+        title: "What is DHARAA?",
+        body: "DHARAA is an end-to-end precision agriculture platform. IoT sensors buried in your field continuously collect soil and environment data. That data travels wirelessly to our cloud, where AI processes it and delivers plain-language decisions to your phone — so you act before problems occur.",
         type: "flow",
         flow: [
           { icon: "📡", label: "Sensor node", sub: "In-field device" },
@@ -48,7 +48,7 @@ const CONTENT = {
         items: [
           {
             icon: "📡",
-            name: "Crop Sense Node",
+            name: "DHARAA Node",
             spec: "IP67 · 3-yr battery · multi-depth",
             desc: "Reads soil moisture, temperature, pH, and NPK at multiple depths. Transmits via GSM 4G. Waterproof and deploy-and-forget.",
           },
@@ -62,7 +62,7 @@ const CONTENT = {
             icon: "⚡",
             name: "Irrigation controller",
             spec: "Optional · connects existing pumps",
-            desc: "Bridges between Crop Sense and your existing drip lines or pump motors. Enables fully automatic AI-driven irrigation.",
+            desc: "Bridges between DHARAA and your existing drip lines or pump motors. Enables fully automatic AI-driven irrigation.",
           },
           {
             icon: "📱",
@@ -94,7 +94,7 @@ const CONTENT = {
           {
             n: "03",
             title: "Scan QR in the app",
-            desc: "Open the Crop Sense app → Add Device → scan the QR on each node. It registers instantly.",
+            desc: "Open the DHARAA app → Add Device → scan the QR on each node. It registers instantly.",
           },
           {
             n: "04",
@@ -167,7 +167,7 @@ const CONTENT = {
         tag: "AI scheduling",
         tagColor: "purple",
         title: "AI irrigation scheduling system",
-        body: "The heart of Crop Sense. Our AI doesn't just show you data — it decides when and how much to irrigate, automatically.",
+        body: "The heart of DHARAA. Our AI doesn't just show you data — it decides when and how much to irrigate, automatically.",
         type: "ai",
         inputs: [
           { icon: "💧", label: "Live soil moisture" },
@@ -215,7 +215,7 @@ const CONTENT = {
         tag: "Connectivity",
         tagColor: "blue",
         title: "Connectivity options",
-        body: "Crop Sense works wherever there is mobile network coverage.",
+        body: "DHARAA works wherever there is mobile network coverage.",
         type: "connect",
         options: [
           {
@@ -242,7 +242,7 @@ const CONTENT = {
         tag: "Daily use",
         tagColor: "emerald",
         title: "Farmer's daily routine",
-        body: "Using Crop Sense takes under 5 minutes a day.",
+        body: "Using DHARAA takes under 5 minutes a day.",
         type: "steps",
         steps: [
           { n: "AM", title: "Morning check (2 min)", desc: "Open app. See overnight alerts and today's AI irrigation schedule across all zones." },
@@ -257,7 +257,7 @@ const CONTENT = {
   hi: {
     hero: {
       eyebrow: "पूरा प्लेटफ़ॉर्म गाइड",
-      title: "Crop Sense कैसे काम करता है",
+      title: "DHARAA कैसे काम करता है",
       subtitle: "मिट्टी में लगे सेंसर से लेकर आपके फोन पर AI के फैसले तक — हर कदम समझाया गया।",
     },
     sections: [
@@ -266,8 +266,8 @@ const CONTENT = {
         icon: "🌱",
         tag: "अवलोकन",
         tagColor: "emerald",
-        title: "Crop Sense क्या है?",
-        body: "Crop Sense एक स्मार्ट खेती प्लेटफ़ॉर्म है। खेत में लगे IoT सेंसर लगातार मिट्टी और वातावरण का डेटा इकट्ठा करते हैं। यह डेटा वायरलेस तरीके से हमारे क्लाउड पर जाता है, जहाँ AI इसे प्रोसेस करके सरल भाषा में आपके फोन पर फैसला भेजता है।",
+        title: "DHARAA क्या है?",
+        body: "DHARAA एक स्मार्ट खेती प्लेटफ़ॉर्म है। खेत में लगे IoT सेंसर लगातार मिट्टी और वातावरण का डेटा इकट्ठा करते हैं। यह डेटा वायरलेस तरीके से हमारे क्लाउड पर जाता है, जहाँ AI इसे प्रोसेस करके सरल भाषा में आपके फोन पर फैसला भेजता है।",
         type: "flow",
         flow: [
           { icon: "📡", label: "सेंसर नोड", sub: "खेत में डिवाइस" },
@@ -286,9 +286,9 @@ const CONTENT = {
         body: "हर डिवाइस पहले से कॉन्फ़िगर है। कोई तकनीशियन नहीं चाहिए — बस लगाएं और चालू करें।",
         type: "hardware",
         items: [
-          { icon: "📡", name: "Crop Sense नोड", spec: "IP67 · 3 साल बैटरी · मल्टी-डेप्थ", desc: "मिट्टी की नमी, तापमान, pH और NPK कई गहराइयों पर पढ़ता है। GSM 4G से डेटा भेजता है। वाटरप्रूफ।" },
+          { icon: "📡", name: "DHARAA नोड", spec: "IP67 · 3 साल बैटरी · मल्टी-डेप्थ", desc: "मिट्टी की नमी, तापमान, pH और NPK कई गहराइयों पर पढ़ता है। GSM 4G से डेटा भेजता है। वाटरप्रूफ।" },
           { icon: "📶", name: "GSM 4G SIM मॉड्यूल", spec: "मोबाइल नेटवर्क हो तो काम करे", desc: "हर नोड में बिल्ट-इन। नैनो-SIM लगाएं। Jio, Airtel, Vi — कोई भी चलेगा। Wi-Fi की जरूरत नहीं।" },
-          { icon: "⚡", name: "सिंचाई कंट्रोलर", spec: "वैकल्पिक · मौजूदा पंप से जोड़ें", desc: "Crop Sense को आपके ड्रिप लाइन या पंप मोटर से जोड़ता है। AI-संचालित स्वचालित सिंचाई के लिए।" },
+          { icon: "⚡", name: "सिंचाई कंट्रोलर", spec: "वैकल्पिक · मौजूदा पंप से जोड़ें", desc: "DHARAA को आपके ड्रिप लाइन या पंप मोटर से जोड़ता है। AI-संचालित स्वचालित सिंचाई के लिए।" },
           { icon: "📱", name: "स्मार्टफोन / टैबलेट", spec: "Android या iOS", desc: "डैशबोर्ड ऐप या वेब पोर्टल किसी भी डिवाइस से चलाएं। पूरा कंट्रोल, अलर्ट और AI सुझाव।" },
         ],
       },
@@ -303,7 +303,7 @@ const CONTENT = {
         steps: [
           { n: "01", title: "SIM कार्ड डालें", desc: "नोड का SIM स्लॉट खोलें और नैनो-SIM डालें। नोड खुद 4G से कनेक्ट हो जाएगा।" },
           { n: "02", title: "सेंसर नोड लगाएं", desc: "नोड को जड़ की गहराई (15–30 सेमी) पर मिट्टी में दबाएं। एक नोड 1 एकड़ तक कवर करता है।" },
-          { n: "03", title: "ऐप में QR स्कैन करें", desc: "Crop Sense ऐप खोलें → डिवाइस जोड़ें → हर नोड का QR स्कैन करें। तुरंत रजिस्टर होगा।" },
+          { n: "03", title: "ऐप में QR स्कैन करें", desc: "DHARAA ऐप खोलें → डिवाइस जोड़ें → हर नोड का QR स्कैन करें। तुरंत रजिस्टर होगा।" },
           { n: "04", title: "जोन का नाम रखें", desc: "हर नोड को नाम दें (जैसे 'गेहूं उत्तर')। फसल का प्रकार चुनें ताकि AI सही सुझाव दे।" },
           { n: "05", title: "लाइव हो जाएं", desc: "2 मिनट में डेटा आना शुरू। अलर्ट और AI शेड्यूलिंग अपने आप चालू हो जाती है।" },
         ],
@@ -331,7 +331,7 @@ const CONTENT = {
         tag: "AI शेड्यूलिंग",
         tagColor: "purple",
         title: "AI सिंचाई शेड्यूलिंग सिस्टम",
-        body: "Crop Sense का दिल। हमारा AI सिर्फ डेटा नहीं दिखाता — यह खुद तय करता है कि कब और कितनी सिंचाई करनी है।",
+        body: "DHARAA का दिल। हमारा AI सिर्फ डेटा नहीं दिखाता — यह खुद तय करता है कि कब और कितनी सिंचाई करनी है।",
         type: "ai",
         inputs: [
           { icon: "💧", label: "लाइव मिट्टी नमी" },
@@ -379,7 +379,7 @@ const CONTENT = {
         tag: "कनेक्टिविटी",
         tagColor: "blue",
         title: "कनेक्टिविटी विकल्प",
-        body: "Crop Sense जहाँ भी मोबाइल नेटवर्क है, वहाँ काम करता है।",
+        body: "DHARAA जहाँ भी मोबाइल नेटवर्क है, वहाँ काम करता है।",
         type: "connect",
         options: [
           { icon: "📶", name: "GSM / 4G SIM (बिल्ट-इन)", badge: "अनुशंसित", badgeColor: "emerald", desc: "हर नोड में बिल्ट-इन SIM स्लॉट। कोई भी भारतीय कैरियर (Jio, Airtel, Vi)। ज्यादातर गाँव और दूरदराज के खेतों में काम करता है।", range: "मोबाइल नेटवर्क क्षेत्र" },
@@ -392,7 +392,7 @@ const CONTENT = {
         tag: "रोज़ाना उपयोग",
         tagColor: "emerald",
         title: "किसान की रोज़ाना दिनचर्या",
-        body: "Crop Sense इस्तेमाल करने में रोज़ 5 मिनट से कम लगते हैं।",
+        body: "DHARAA इस्तेमाल करने में रोज़ 5 मिनट से कम लगते हैं।",
         type: "steps",
         steps: [
           { n: "AM", title: "सुबह की जांच (2 मिनट)", desc: "ऐप खोलें। रात के अलर्ट और आज का AI सिंचाई शेड्यूल देखें।" },
@@ -812,8 +812,8 @@ export default function HowItWorks() {
             </div>
             <div style={{ fontSize: 14, color: "#7eb89a", marginBottom: 20, lineHeight: 1.6 }}>
               {lang === "en"
-                ? "Get your Crop Sense kit. Setup in under 10 minutes. AI irrigation active from day one."
-                : "अपना Crop Sense किट लें। 10 मिनट में सेटअप। पहले दिन से AI सिंचाई चालू।"}
+                ? "Get your DHARAA kit. Setup in under 10 minutes. AI irrigation active from day one."
+                : "अपना DHARAA किट लें। 10 मिनट में सेटअप। पहले दिन से AI सिंचाई चालू।"}
             </div>
             <button onClick={handleLogin} style={{
               background: "#10b981", color: "#030f0a", border: "none",

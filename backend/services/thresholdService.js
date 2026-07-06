@@ -124,6 +124,17 @@ const moisture = reading.avgMoisture;
     });
   }
 
+  // ── Physical button override ───────────────────────────────────────────────
+  if (reading.physicalBtn === 1) {
+    alerts.push({
+      type:     "physical_override",
+      severity: "info",
+      title:    "🔔 Physical Override Active",
+      message:  "Pump was turned ON via the on-device physical button override.",
+      context:  { sensor: "physicalBtn", value: reading.physicalBtn },
+    });
+  }
+
   if (alerts.length === 0) return;
 
   // ── De-bounce: skip alerts that were sent recently ─────────────────────────

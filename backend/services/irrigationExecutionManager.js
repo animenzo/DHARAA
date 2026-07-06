@@ -823,7 +823,7 @@ async function notifyOnce(execution, key, { title, message, severity = "info" })
     farm: execution.farm,
     title,
     message,
-    type: "system",
+    type: execution.emergency ? "system" : "ai_activation",
     severity,
     context: { executionId: execution._id, status: execution.status },
   });

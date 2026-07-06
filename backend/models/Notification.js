@@ -60,6 +60,9 @@ const notificationSchema = new mongoose.Schema(
         "rain_detected",        // Rain sensor triggered
         "command_failed",       // MQTT publish failed
         "ai_recommendation",    // Future: AI suggestion
+        "physical_override",    // Manual button override on device
+        "weather_warning",      // Extreme heat or storm forecast alerts
+        "ai_activation",        // AI smart irrigation starts/stops/updates
         "system",               // Generic system message
       ],
       default: "system",

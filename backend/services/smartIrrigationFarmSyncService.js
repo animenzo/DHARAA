@@ -8,6 +8,7 @@ const TodayState = require("../models/TodayState");
 const Farm = require("../models/Farm");
 const Device = require("../models/Device");
 const SensorData = require("../models/SensorData");
+const Notification = require("../models/Notification");
 // Register populate targets regardless of route/module load order.
 require("../models/CropFinalDataset");
 require("../models/SoilDataset");
@@ -482,6 +483,55 @@ async function storeSmartIrrigationResult({ farm, deviceId, result, latestSensor
   );
 
   await Promise.all(writeTasks);
+
+  // ── Trigger Weather Advisory Warnings ──────────────────────────────────────
+  if (dayForecast && dayForecast.length > 0) {
+    const tomorrowForecast = dayForecast[0];
+    if (tomorrowForecast) {
+      const { Tmax, WeatherCode, Rain_Prob } = tomorrowForecast;
+      const { createSystemNotification } = require("./thresholdService");
+
+      // Debounce: check if a weather advisory was sent recently (e.g. within last 12 hours)
+      const twelveHoursAgo = new Date(Date.now() - 12 * 60 * 60 * 1000);
+      const recentWarning = await Notification.findOne({
+        user: farm.user,
+        farm: farm._id,
+        type: "weather_warning",
+        createdAt: { $gte: twelveHoursAgo }
+      }).lean();
+
+      if (!recentWarning) {
+        // 1. Extreme Heat Alert
+        if (Tmax >= 42) {
+          await createSystemNotification({
+            userId: farm.user,
+            farmId: farm._id,
+            deviceId: device._id,
+            title: "☀️ Extreme Heat Forecasted",
+            message: `Tomorrow's forecast predicts a high of ${Tmax}°C at ${farm.name || "your farm"}. Ensure crops are well hydrated.`,
+            type: "weather_warning",
+            severity: "warning",
+            context: { Tmax }
+          });
+        }
+
+        // 2. Heavy Rain Warning
+        const isRainyWmoCode = [51, 53, 55, 61, 63, 65, 80, 81, 82, 95, 96, 99].includes(Number(WeatherCode));
+        if (isRainyWmoCode && Rain_Prob >= 70) {
+          await createSystemNotification({
+            userId: farm.user,
+            farmId: farm._id,
+            deviceId: device._id,
+            title: "⛈ Heavy Rain Advisory",
+            message: `Heavy rain is forecast for tomorrow at ${farm.name || "your farm"} (${Rain_Prob}% probability). Consider pausing schedules to save water.`,
+            type: "weather_warning",
+            severity: "info",
+            context: { WeatherCode, Rain_Prob }
+          });
+        }
+      }
+    }
+  }
 
   const execution = await createExecutionFromRecommendation({
     farm,
