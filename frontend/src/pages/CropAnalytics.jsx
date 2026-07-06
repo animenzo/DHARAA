@@ -31,6 +31,7 @@ import {
 import API from "../services/api";
 import { getSmartIrrigationResult } from "../services/aiApi";
 import { getCropLabel, formatFarmAreaAcres } from "../utils/farmDisplay";
+import iotApi from "../services/iotApi";
 
 function toArray(value) {
   return Array.isArray(value) ? value : [];
@@ -128,6 +129,19 @@ export default function CropAnalytics() {
   const [activeTab, setActiveTab] = useState("kc"); // "kc" | "etc" | "combined"
 
   const farmId = selectedFarm?._id || null;
+
+  // Fetch latest sensor reading for soil moisture details
+  const { data: latestReadingData } = useQuery({
+    queryKey: ["latestReading", farmId],
+    queryFn: () => iotApi.getLatestReading(farmId),
+    enabled: !!farmId,
+    refetchInterval: 10_000,
+  });
+
+  const reading = latestReadingData?.reading;
+  const sensor1Val = reading?.moistureSensors?.[0]?.value;
+  const sensor2Val = reading?.moistureSensors?.[1]?.value;
+  const avgMoistureVal = reading?.avgMoisture;
 
   // Set page title for SEO best practices
   useEffect(() => {
@@ -269,6 +283,91 @@ export default function CropAnalytics() {
               )}
             </div>
           )}
+
+          {/* ── Soil Properties & Real-Time Moisture Card ────────────────── */}
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 hover:shadow-md transition duration-200">
+            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4 flex items-center gap-2">
+              <FaTint className="text-emerald-500" /> Soil Physics & Real-Time Moisture Status
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Left Column: Soil Constants (FC, PWP, MAD) */}
+              <div className="space-y-4 bg-slate-50/50 p-5 rounded-2xl border border-slate-100">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider border-b pb-2">
+                  Soil Water Constants
+                </h3>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center">
+                    <p className="text-[10px] text-slate-400 font-bold uppercase">Field Capacity (FC)</p>
+                    <p className="text-xl font-black text-slate-800 mt-1">
+                      {selectedFarm?.soilType?.["FC (v%)"] !== undefined 
+                        ? `${selectedFarm.soilType["FC (v%)"]}%` 
+                        : "N/A"}
+                    </p>
+                    <span className="text-[9px] text-slate-400 block mt-0.5">Max water retention</span>
+                  </div>
+                  <div className="text-center border-x border-slate-200">
+                    <p className="text-[10px] text-slate-400 font-bold uppercase">Wilting Point (PWP)</p>
+                    <p className="text-xl font-black text-slate-800 mt-1">
+                      {selectedFarm?.soilType?.["PWP (v%)"] !== undefined 
+                        ? `${selectedFarm.soilType["PWP (v%)"]}%` 
+                        : "N/A"}
+                    </p>
+                    <span className="text-[9px] text-slate-400 block mt-0.5">Dry limit for plants</span>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[10px] text-slate-400 font-bold uppercase">MAD Threshold</p>
+                    <p className="text-xl font-black text-slate-800 mt-1">
+                      {selectedFarm?.current_crop?.["p (MAD)"] !== undefined 
+                        ? `${(selectedFarm.current_crop["p (MAD)"] * 100).toFixed(0)}%` 
+                        : "N/A"}
+                    </p>
+                    <span className="text-[9px] text-slate-400 block mt-0.5">Max allowed depletion</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column: Real-Time Moisture (Sensor 1, 2, Average) */}
+              <div className="space-y-4 bg-emerald-50/20 p-5 rounded-2xl border border-emerald-100/50">
+                <h3 className="text-xs font-bold text-emerald-700/80 uppercase tracking-wider border-b border-emerald-100 pb-2 flex justify-between items-center">
+                  <span>Live Moisture Levels</span>
+                  {reading ? (
+                    <span className="text-[9px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold uppercase animate-pulse">Live</span>
+                  ) : (
+                    <span className="text-[9px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-bold uppercase">No Device</span>
+                  )}
+                </h3>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="text-center">
+                    <p className="text-[10px] text-slate-500 font-bold uppercase">Moisture 1</p>
+                    <p className="text-xl font-black text-slate-800 mt-1">
+                      {sensor1Val !== undefined && sensor1Val !== null 
+                        ? `${sensor1Val}%` 
+                        : "—"}
+                    </p>
+                    <span className="text-[9px] text-slate-400 block mt-0.5">Topsoil sensor</span>
+                  </div>
+                  <div className="text-center border-x border-emerald-100/50">
+                    <p className="text-[10px] text-slate-500 font-bold uppercase">Moisture 2</p>
+                    <p className="text-xl font-black text-slate-800 mt-1">
+                      {sensor2Val !== undefined && sensor2Val !== null 
+                        ? `${sensor2Val}%` 
+                        : "—"}
+                    </p>
+                    <span className="text-[9px] text-slate-400 block mt-0.5">Rootzone sensor</span>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-[10px] text-emerald-700 font-bold uppercase">Average</p>
+                    <p className="text-xl font-black text-emerald-600 mt-1">
+                      {avgMoistureVal !== undefined && avgMoistureVal !== null 
+                        ? `${avgMoistureVal}%` 
+                        : "—"}
+                    </p>
+                    <span className="text-[9px] text-slate-400 block mt-0.5">Mean soil moisture</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
           {/* ── Metric Summary Cards ─────────────────────────────────────── */}
           {predictionsData.length > 0 && todayMetrics ? (
