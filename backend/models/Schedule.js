@@ -20,7 +20,7 @@ const scheduleSchema = new mongoose.Schema({
   },
   zone: {
     type: String,
-    
+
     trim: true
   },
   status: {
@@ -35,17 +35,12 @@ const scheduleSchema = new mongoose.Schema({
   },
   duration: {
     type: Number, // In minutes
-    validate: {
-      validator: (v) => v === null || v === undefined || v >= 1,
-      message: 'Duration must be at least 1 minute'
-    }
+    min: [1, 'Duration must be at least 1 minute']
   },
   moisture: {
     type: Number, // 0 to 100
-    validate: {
-      validator: (v) => v === null || v === undefined || (v >= 0 && v <= 100),
-      message: 'Moisture must be between 0% and 100%'
-    }
+    min: [0, 'Moisture must be at least 0%'],
+    max: [100, 'Moisture cannot exceed 100%']
   },
   date: {
     type: String, // YYYY-MM-DD
@@ -53,8 +48,9 @@ const scheduleSchema = new mongoose.Schema({
   },
   days: {
     type: [Boolean], // [Mon, Tue, Wed, Thu, Fri, Sat, Sun]
+    default: undefined,
     validate: {
-      validator: (v) => !v || v.length === 7,
+      validator: (v) => !v || v.length === 0 || v.length === 7,
       message: 'Days must be an array of 7 booleans'
     }
   },

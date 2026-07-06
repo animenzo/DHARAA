@@ -142,21 +142,32 @@ const updateSchedule = async (req, res) => {
             req.body.nextRun = calculateNextRun(newDays, newTime, newDate);
         }
 
+        const updatePayload = { ...req.body };
+        const unsetPayload = {};
+
         // Clean up fields if switching between recurring/one-time
-        if (req.body.date) {
-            req.body.days = undefined;
-        } else if (req.body.days) {
-            req.body.date = null;
+        if (updatePayload.date) {
+            unsetPayload.days = "";
+            delete updatePayload.days;
+        } else if (updatePayload.days) {
+            unsetPayload.date = "";
+            delete updatePayload.date;
         }
 
         // Clean up fields if switching between duration/moisture
-        if (req.body.moisture !== undefined && req.body.moisture !== "") {
-            req.body.duration = null;
-        } else if (req.body.duration) {
-            req.body.moisture = null;
+        if (updatePayload.moisture !== undefined && updatePayload.moisture !== "") {
+            unsetPayload.duration = "";
+            delete updatePayload.duration;
+        } else if (updatePayload.duration) {
+            unsetPayload.moisture = "";
+            delete updatePayload.moisture;
         }
 
-        schedule = await Schedule.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        if (Object.keys(unsetPayload).length > 0) {
+            updatePayload.$unset = unsetPayload;
+        }
+
+        schedule = await Schedule.findByIdAndUpdate(req.params.id, updatePayload, { new: true });
 
         res.status(200).json(schedule);
     } catch (error) {
