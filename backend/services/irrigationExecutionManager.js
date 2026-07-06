@@ -8,6 +8,7 @@ const Notification = require("../models/Notification");
 const { issueCommand } = require("./commandService");
 const { isBrokerConnected } = require("./mqttService");
 const { emitToUser } = require("./socketService");
+const { sendNotification } = require("./notificationService");
 const Farm = require("../models/Farm");
 
 // Resolve this lazily because smartIrrigationFarmSyncService also imports this
@@ -827,7 +828,7 @@ async function notifyOnce(execution, key, { title, message, severity = "info" })
     context: { executionId: execution._id, status: execution.status },
   });
 
-  emitToUser(execution.user.toString(), "notification", notification);
+  await sendNotification(execution.user, notification);
   emitToUser(execution.user.toString(), "irrigationExecution", {
     executionId: execution._id,
     title,

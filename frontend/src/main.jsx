@@ -31,6 +31,10 @@ import { AuthProvider } from "./context/AuthContext.jsx";
 import { SocketProvider } from "./context/SocketContext.jsx"; // ← NEW Phase 3
 import { BrowserRouter } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { registerSW } from "virtual:pwa-register";
+
+// Register PWA service worker
+registerSW({ immediate: true });
 
 const queryClient = new QueryClient({
   defaultOptions: {

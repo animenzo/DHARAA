@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { Outlet } from "react-router-dom";
 import Sidebar from "./SideBar";
 import { FaBars } from "react-icons/fa";
+import NotificationCenter from "./notifications/NotificationCenter";
 
 const DashboardLayout = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -33,6 +34,9 @@ const DashboardLayout = () => {
           <Outlet />
         </main>
       </div>
+
+      {/* 3. Notification Center */}
+      <NotificationCenter />
     </div>
   );
 };

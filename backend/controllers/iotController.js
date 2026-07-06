@@ -3,6 +3,7 @@ const Template         = require("../models/Template");
 const SensorData       = require("../models/SensorData");
 const CommandLog       = require("../models/CommandLog");
 const Notification     = require("../models/Notification");
+const PushSubscription = require("../models/PushSubscription");
 const {  buildConnectionGuide } = require("../services/provisioningService");
 // publishCommand removed — Phase 7 moved all MQTT publishing into commandService.issueCommand()
 const { invalidate }        = require("../services/deviceCacheService");
@@ -863,3 +864,41 @@ exports.getPumpUsageAnalytics = async (req, res) => {
     res.status(500).json({ message: "Failed to fetch pump usage analytics" });
   }
 };
+
+// GET /iot/notifications/vapid-key
+exports.getVapidKey = async (req, res) => {
+  try {
+    if (!process.env.VAPID_PUBLIC_KEY) {
+      return res.status(404).json({ message: "VAPID key not configured" });
+    }
+    res.json({ publicKey: process.env.VAPID_PUBLIC_KEY });
+  } catch (err) {
+    console.error("getVapidKey error:", err.message);
+    res.status(500).json({ message: "Failed to get VAPID key" });
+  }
+};
+
+// POST /iot/notifications/subscribe
+exports.subscribePush = async (req, res) => {
+  try {
+    const { endpoint, keys } = req.body;
+    if (!endpoint || !keys || !keys.p256dh || !keys.auth) {
+      return res.status(400).json({ message: "Invalid subscription details" });
+    }
+
+    await PushSubscription.findOneAndUpdate(
+      { "subscription.endpoint": endpoint },
+      {
+        user: req.user._id,
+        subscription: { endpoint, keys }
+      },
+      { upsert: true, new: true }
+    );
+
+    res.status(201).json({ message: "Subscription saved successfully" });
+  } catch (err) {
+    console.error("subscribePush error:", err.message);
+    res.status(500).json({ message: "Failed to save subscription" });
+  }
+};
+

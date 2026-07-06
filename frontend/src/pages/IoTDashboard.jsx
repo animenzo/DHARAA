@@ -268,13 +268,31 @@ export default function IoTDashboard() {
     }
 
     if (latest?.waterLevel !== undefined &&
-      latest.waterLevel < 20) {
+      latest.waterLevel < 0.5) {
       list.push("Low Water Level");
     }
 
     if (latest?.rain === 1) {
       list.push("Rain Detected");
+
+      if (latest?.avgMoisture !== undefined) {
+        if (latest.avgMoisture < 5) {
+          list.push("Soil Too Dry");
+        } else if (latest.avgMoisture > 95) {
+          list.push("Soil Too Wet");
+        }
+      }
     }
+     if (latest?.power_status === 0) {
+    list.push("Power Failure");
+  }
+  // AI
+if (latest?.aiMode === true) {
+  list.push("AI Irrigation Active");
+}
+  if (latest?.physicalBtn === 1) {
+    list.push("Manual Control Active");
+  }
 
     return list;
   }, [latest, isOnline]);
@@ -437,7 +455,7 @@ export default function IoTDashboard() {
 
         {/* RIGHT COLUMN */}
         <div className="lg:col-span-2 space-y-4">
-           <SensorDashboard
+          <SensorDashboard
 
             latest={latest}
             isLoading={sensorLoading}
@@ -454,7 +472,7 @@ export default function IoTDashboard() {
               result={smartIrrigationResult}
             />
           )}
-         
+
           <div className="bg-white border border-slate-100 p-5 rounded-[2rem] shadow-sm flex flex-col justify-center text-center">
             <div className="flex items-center justify-center gap-2 text-slate-400 mb-2">
               <FaCalendarAlt />

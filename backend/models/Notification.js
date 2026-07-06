@@ -96,7 +96,7 @@ const notificationSchema = new mongoose.Schema(
 notificationSchema.index({ user: 1, isRead: 1, createdAt: -1 });
 notificationSchema.index({ user: 1, createdAt: -1 });
 
-// Auto-delete notifications older than 30 days
+// Auto-delete notifications older than 5 days
 notificationSchema.index(
   { createdAt: 1 },
   { expireAfterSeconds: 5 * 24 * 60 * 60 }

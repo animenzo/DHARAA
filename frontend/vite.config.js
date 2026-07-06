@@ -9,10 +9,14 @@ export default defineConfig({
   },
   plugins: [react(),tailwindcss(),
     VitePWA({
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw.js',
       registerType: 'autoUpdate', // Updates app automatically when new content is available
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'favicon.svg'],
       devOptions: {
-        enabled: true
+        enabled: true,
+        type: 'module'
       },
       manifest: {
         name: 'DHARAA',

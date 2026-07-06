@@ -210,6 +210,16 @@ const iotApi = {
     return res.data;
   },
 
+  getVapidPublicKey: async () => {
+    const res = await API.get("/iot/notifications/vapid-key");
+    return res.data;
+  },
+
+  subscribePush: async (subscription) => {
+    const res = await API.post("/iot/notifications/subscribe", subscription);
+    return res.data;
+  },
+
   // ===========================================================================
   // ANALYTICS
   // ===========================================================================

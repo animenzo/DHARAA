@@ -12,7 +12,7 @@
 // =============================================================================
 
 const Notification = require("../models/Notification");
-const { emitToUser } = require("./socketService");
+const { sendNotification } = require("./notificationService");
 
 // ─── Default alert thresholds ─────────────────────────────────────────────────
 const THRESHOLDS = {
@@ -155,16 +155,8 @@ const moisture = reading.avgMoisture;
         context:  alert.context,
       });
 
-      // Push to React dashboard in real-time
-      emitToUser(userId.toString(), "notification", {
-        _id:      notification._id,
-        title:    notification.title,
-        message:  notification.message,
-        type:     notification.type,
-        severity: notification.severity,
-        context:  notification.context,
-        createdAt: notification.createdAt,
-      });
+      // Send real-time and Web Push notification
+      await sendNotification(userId, notification);
 
     } catch (err) {
       console.error("❌ ThresholdService: failed to create notification:", err.message);
@@ -190,15 +182,7 @@ async function createSystemNotification({ userId, deviceId, farmId, title, messa
       context:  context  || null,
     });
 
-    emitToUser(userId.toString(), "notification", {
-      _id:       notification._id,
-      title:     notification.title,
-      message:   notification.message,
-      type:      notification.type,
-      severity:  notification.severity,
-      context:   notification.context,
-      createdAt: notification.createdAt,
-    });
+    await sendNotification(userId, notification);
 
     return notification;
   } catch (err) {

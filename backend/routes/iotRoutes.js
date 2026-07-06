@@ -34,6 +34,8 @@ const {
   getNotifications,
   markNotificationRead,
   markAllNotificationsRead,
+  getVapidKey,
+  subscribePush,
 
   // Analytics
   getMoistureAnalytics,
@@ -80,6 +82,8 @@ router.post("/command/:id/cancel",   cancelCommand);
 // =============================================================================
 router.get("/notifications",              getNotifications);
 router.patch("/notifications/read-all",   markAllNotificationsRead);
+router.get("/notifications/vapid-key",    getVapidKey);
+router.post("/notifications/subscribe",   subscribePush);
 router.patch("/notifications/:id/read",   markNotificationRead);
 
 // =============================================================================
