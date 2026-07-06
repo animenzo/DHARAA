@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getFarms } from "../../services/scheduleApi"; // Adjust path
+import iotApi from "../../services/iotApi";
+import ConfirmationModal from "../dashboard/ConfirmationModal";
 import {
   FaCalendarAlt,
   FaClock,
@@ -11,7 +13,22 @@ import {
 import { GiFarmTractor } from "react-icons/gi";
 import toast from "react-hot-toast";
 
-const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+// --- Global UI Components (Defined outside to prevent unmounting/character input bug) ---
+const InputGroup = ({ label, icon: Icon, children }) => (
+  <div className="flex flex-col gap-2">
+    <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
+      {Icon && <Icon className="text-emerald-500" />} {label}
+    </label>
+    {children}
+  </div>
+);
+
+const StyledInput = (props) => (
+  <input
+    {...props}
+    className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none bg-gray-50 focus:bg-white transition-all"
+  />
+);
 
 const ScheduleForm = ({ initialData, onSubmit, isSubmitting, onCancel }) => {
   // --- State ---
@@ -20,16 +37,28 @@ const ScheduleForm = ({ initialData, onSubmit, isSubmitting, onCancel }) => {
     farmId: "",
     zone: "",
     time: "",
-    duration: "",
-    days: [false, false, false, false, false, false, false], // 7 Booleans
+    moisture: 30, // Default target moisture
+    date: "",     // Single-run Date
     status: "Active",
     notes: "",
   });
 
+  const [showWarningModal, setShowWarningModal] = useState(false);
+  const [warningMessage, setWarningMessage] = useState("");
+
   // Load initial data if editing
   useEffect(() => {
     if (initialData) {
-      setFormData(initialData);
+      setFormData({
+        name: initialData.name || "",
+        farmId: typeof initialData.farmId === "object" ? initialData.farmId._id : (initialData.farmId || ""),
+        zone: initialData.zone || "",
+        time: initialData.time || "",
+        moisture: initialData.moisture !== undefined && initialData.moisture !== null ? initialData.moisture : 30,
+        date: initialData.date || "",
+        status: initialData.status || "Active",
+        notes: initialData.notes || "",
+      });
     }
   }, [initialData]);
 
@@ -39,16 +68,19 @@ const ScheduleForm = ({ initialData, onSubmit, isSubmitting, onCancel }) => {
     queryFn: getFarms,
   });
 
+  // Fetch latest sensor reading for current moisture warning
+  const { data: latestReadingData } = useQuery({
+    queryKey: ["latestReading", formData.farmId],
+    queryFn: () => iotApi.getLatestReading(formData.farmId),
+    enabled: !!formData.farmId,
+  });
+
+  const currentMoisture = latestReadingData?.reading?.avgMoisture;
+
   // --- Handlers ---
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
-  };
-
-  const toggleDay = (index) => {
-    const newDays = [...formData.days];
-    newDays[index] = !newDays[index];
-    setFormData((prev) => ({ ...prev, days: newDays }));
   };
 
   const handleSubmit = (e) => {
@@ -56,28 +88,48 @@ const ScheduleForm = ({ initialData, onSubmit, isSubmitting, onCancel }) => {
 
     // Validation
     if (!formData.farmId) return toast.error("Please select a farm");
-    if (!formData.days.includes(true))
-      return toast.error("Select at least one day");
+    if (!formData.date) return toast.error("Please select a date");
+    if (formData.moisture === undefined || formData.moisture === "") {
+      return toast.error("Please select target moisture");
+    }
 
-    onSubmit(formData);
+    const moistureVal = Number(formData.moisture);
+
+    // Warning Checks
+    const isTargetTooHigh = moistureVal > 95;
+    const isCurrentTooHigh = currentMoisture !== undefined && currentMoisture !== null && currentMoisture >= 90;
+
+    if (isTargetTooHigh || isCurrentTooHigh) {
+      let msg = "";
+      if (isTargetTooHigh && isCurrentTooHigh) {
+        msg = `The target moisture is set to ${moistureVal}% (greater than 95%), and the current soil moisture is already ${currentMoisture}% (90% or above). This may lead to severe over-irrigation.`;
+      } else if (isTargetTooHigh) {
+        msg = `The target moisture is set to ${moistureVal}% (greater than 95%), which is very high and may cause over-irrigation.`;
+      } else {
+        msg = `The current soil moisture is already ${currentMoisture}% (90% or above). Running irrigation now may cause over-irrigation.`;
+      }
+      msg += " Do you want to proceed and save this schedule anyway?";
+      setWarningMessage(msg);
+      setShowWarningModal(true);
+      return;
+    }
+
+    // Direct submit if no warnings
+    onSubmit({
+      ...formData,
+      moisture: moistureVal,
+      duration: undefined // Ensure duration is cleared when submitting
+    });
   };
 
-  // --- UI Components ---
-  const InputGroup = ({ label, icon: Icon, children }) => (
-    <div className="flex flex-col gap-2">
-      <label className="text-sm font-bold text-gray-700 flex items-center gap-2">
-        {Icon && <Icon className="text-emerald-500" />} {label}
-      </label>
-      {children}
-    </div>
-  );
-
-  const StyledInput = (props) => (
-    <input
-      {...props}
-      className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-200 outline-none bg-gray-50 focus:bg-white transition-all"
-    />
-  );
+  const handleConfirmSave = () => {
+    setShowWarningModal(false);
+    onSubmit({
+      ...formData,
+      moisture: Number(formData.moisture),
+      duration: undefined
+    });
+  };
 
   return (
     <form
@@ -98,14 +150,14 @@ const ScheduleForm = ({ initialData, onSubmit, isSubmitting, onCancel }) => {
               placeholder="e.g. Morning Drip"
               value={formData.name}
               onChange={handleChange}
-              required
+              
             />
           </InputGroup>
 
           <InputGroup label="Select Farm" icon={GiFarmTractor}>
             <select
               name="farmId"
-              value={formData.farmId} // Ensure ID matches exactly
+              value={formData.farmId}
               onChange={handleChange}
               className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:border-emerald-500 outline-none bg-gray-50"
               required
@@ -131,7 +183,7 @@ const ScheduleForm = ({ initialData, onSubmit, isSubmitting, onCancel }) => {
               placeholder="e.g. North Sector"
               value={formData.zone}
               onChange={handleChange}
-              required
+              
             />
           </InputGroup>
 
@@ -157,7 +209,7 @@ const ScheduleForm = ({ initialData, onSubmit, isSubmitting, onCancel }) => {
           </InputGroup>
         </div>
 
-        {/* Time & Duration */}
+        {/* Time & Moisture Range */}
         <div className="bg-emerald-50/50 p-6 rounded-xl border border-emerald-100 grid grid-cols-1 md:grid-cols-2 gap-6">
           <InputGroup label="Start Time" icon={FaClock}>
             <StyledInput
@@ -169,41 +221,37 @@ const ScheduleForm = ({ initialData, onSubmit, isSubmitting, onCancel }) => {
             />
           </InputGroup>
 
-          <InputGroup label="Duration (Minutes)" icon={FaClock}>
+          <InputGroup label={`Target Moisture (${formData.moisture}%)`} icon={FaWater}>
+            <div className="space-y-2 mt-2">
+              <input
+                type="range"
+                name="moisture"
+                min="0"
+                max="100"
+                value={formData.moisture}
+                onChange={(e) => setFormData((prev) => ({ ...prev, moisture: Number(e.target.value) }))}
+                className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+              />
+              <div className="flex justify-between text-[10px] font-bold text-slate-400 uppercase">
+                <span>0% (Dry)</span>
+                <span>50% (Optimal)</span>
+                <span>100% (Wet)</span>
+              </div>
+            </div>
+          </InputGroup>
+        </div>
+
+        {/* Schedule Date Selection */}
+        <div className="space-y-3">
+          <InputGroup label="Schedule Date" icon={FaCalendarAlt}>
             <StyledInput
-              type="number"
-              name="duration"
-              min="1"
-              placeholder="30"
-              value={formData.duration}
+              type="date"
+              name="date"
+              value={formData.date}
               onChange={handleChange}
               required
             />
           </InputGroup>
-        </div>
-
-        {/* Days Selection */}
-        <div className="space-y-3">
-          <label className="text-sm font-bold text-gray-700">Days Active</label>
-          <div className="flex flex-wrap justify-between gap-2">
-            {DAYS.map((day, index) => (
-              <button
-                key={day}
-                type="button"
-                onClick={() => toggleDay(index)}
-                className={`
-                  w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center font-bold text-sm transition-all
-                  ${
-                    formData.days[index]
-                      ? "bg-emerald-600 text-white shadow-lg shadow-emerald-500/30 scale-105"
-                      : "bg-gray-100 text-gray-400 hover:bg-gray-200"
-                  }
-                `}
-              >
-                {day}
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* Notes */}
@@ -242,6 +290,17 @@ const ScheduleForm = ({ initialData, onSubmit, isSubmitting, onCancel }) => {
           </button>
         </div>
       </div>
+
+      <ConfirmationModal
+        isOpen={showWarningModal}
+        onClose={() => setShowWarningModal(false)}
+        onConfirm={handleConfirmSave}
+        title="High Moisture Warning"
+        message={warningMessage}
+        type="warning"
+        confirmText="Save Anyway"
+        cancelText="Cancel"
+      />
     </form>
   );
 };

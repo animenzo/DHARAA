@@ -12,6 +12,7 @@ import {
   FaRobot,
   FaMicrochip,
   FaSignOutAlt,
+  FaChartLine,
 } from "react-icons/fa";
 
 const NAV_ITEMS = [
@@ -20,6 +21,7 @@ const NAV_ITEMS = [
   { name: "Schedules", path: "/schedules", icon: FaCalendarAlt },
   { name: "Weather", path: "/weather", icon: FaCloudSun },
   { name: "AI Advisor", path: "/ai-advisor", icon: FaRobot },
+  { name: "Analytics", path: "/analytics", icon: FaChartLine },
   // { name: "IoT Device", path: "/iot", icon: FaMicrochip },
   { name: "Profile", path: "/profile", icon: FaUser },
 ];

@@ -8,5 +8,5 @@ export const getMySchedules = async () => {
 export const getSchedule = async (id) => (await API.get(`/schedules/schedule/${id}`)).data;
 export const createSchedule = async (data) => (await API.post('/schedules/schedule', data)).data;
 export const updateSchedule = async ({ id, data }) => (await API.patch(`/schedules/schedule/${id}`, data)).data;
-export const deleteSchedule = async (id) => (await API.delete(`/schedules/schedule${id}`)).data;
+export const deleteSchedule = async (id) => (await API.delete(`/schedules/schedule/${id}`)).data;
 // 

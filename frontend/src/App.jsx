@@ -20,6 +20,7 @@ import UserProfile from "./pages/UserProfile";
 import WeatherPage from "./pages/WeatherPage";
 ;
 import AICropAdvisor from "./pages/AICropAdvisor";
+import CropAnalytics from "./pages/CropAnalytics";
 
 import IoTDashboard from "./pages/IoTDashboard";
 import HowItWorks from "./pages/HowItWorks";
@@ -147,7 +148,11 @@ function App() {
             path="/ai-advisor"
             element={<AICropAdvisor />}
           />
-           <Route path="/iot"  element={<IoTDashboard />} />
+          <Route
+            path="/analytics"
+            element={<CropAnalytics />}
+          />
+          <Route path="/iot"  element={<IoTDashboard />} />
 
 
         </Route>

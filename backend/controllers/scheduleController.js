@@ -1,9 +1,17 @@
 const Schedule = require('../models/Schedule');
 const Farm = require('../models/Farm');
 
-// Helper: Calculate the next run date based on days array and time
-const calculateNextRun = (days, time) => {
+// Helper: Calculate the next run date based on days array/date and time
+const calculateNextRun = (days, time, dateStr = null) => {
     const [hour, minute] = time.split(':').map(Number);
+
+    if (dateStr) {
+        // Specific date, e.g. "2026-07-06"
+        const [year, month, day] = dateStr.split('-').map(Number);
+        return new Date(year, month - 1, day, hour, minute, 0, 0);
+    }
+
+    if (!days) return null;
     const now = new Date();
     const todayIndex = (now.getDay() + 6) % 7; // Adjust so 0=Mon, 6=Sun
 
@@ -30,7 +38,15 @@ const calculateNextRun = (days, time) => {
 // @access  Private
 const createSchedule = async (req, res) => {
     try {
-        const { name, farmId, zone, time, duration, days, notes } = req.body;
+        const { name, farmId, zone, time, duration, days, notes, date, moisture } = req.body;
+
+        // Custom validation
+        if (!duration && (moisture === undefined || moisture === null || moisture === "")) {
+            return res.status(400).json({ message: 'Either duration or moisture is required' });
+        }
+        if (!date && (!days || !days.includes(true))) {
+            return res.status(400).json({ message: 'Either date or active days must be selected' });
+        }
 
         // 1. Check if Farm exists and belongs to user
         const farm = await Farm.findById(farmId);
@@ -42,7 +58,7 @@ const createSchedule = async (req, res) => {
         }
 
         // 2. Calculate next run
-        const nextRun = calculateNextRun(days, time);
+        const nextRun = calculateNextRun(days, time, date);
 
         // 3. Create Schedule
         const schedule = await Schedule.create({
@@ -51,8 +67,10 @@ const createSchedule = async (req, res) => {
             farmId,
             zone,
             time,
-            duration,
-            days,
+            duration: duration || null,
+            moisture: moisture !== undefined && moisture !== "" ? Number(moisture) : null,
+            days: date ? undefined : days,
+            date: date || null,
             notes,
             nextRun
         });
@@ -84,8 +102,26 @@ const getMySchedules = async (req, res) => {
     }
 };
 
+// @desc    Get schedule by ID
+// @route   GET /api/schedules/schedule/:id
+// @access  Private
+const getSchedule = async (req, res) => {
+    try {
+        const schedule = await Schedule.findById(req.params.id);
+        if (!schedule) {
+            return res.status(404).json({ message: 'Schedule not found' });
+        }
+        if (schedule.user.toString() !== req.user.id) {
+            return res.status(401).json({ message: 'User not authorized' });
+        }
+        res.status(200).json(schedule);
+    } catch (error) {
+        res.status(500).json({ message: 'Server Error', error: error.message });
+    }
+};
+
 // @desc    Update / Reschedule a task
-// @route   PUT /api/schedules/:id
+// @route   PATCH /api/schedules/schedule/:id
 // @access  Private
 const updateSchedule = async (req, res) => {
     try {
@@ -98,18 +134,34 @@ const updateSchedule = async (req, res) => {
             return res.status(401).json({ message: 'User not authorized' });
         }
 
-        // If time or days changed, recalculate nextRun
-        if (req.body.time || req.body.days) {
-            const newDays = req.body.days || schedule.days;
+        // If time, days, or date changed, recalculate nextRun
+        if (req.body.time || req.body.days !== undefined || req.body.date !== undefined) {
+            const newDays = req.body.days !== undefined ? req.body.days : schedule.days;
             const newTime = req.body.time || schedule.time;
-            req.body.nextRun = calculateNextRun(newDays, newTime);
+            const newDate = req.body.date !== undefined ? req.body.date : schedule.date;
+            req.body.nextRun = calculateNextRun(newDays, newTime, newDate);
+        }
+
+        // Clean up fields if switching between recurring/one-time
+        if (req.body.date) {
+            req.body.days = undefined;
+        } else if (req.body.days) {
+            req.body.date = null;
+        }
+
+        // Clean up fields if switching between duration/moisture
+        if (req.body.moisture !== undefined && req.body.moisture !== "") {
+            req.body.duration = null;
+        } else if (req.body.duration) {
+            req.body.moisture = null;
         }
 
         schedule = await Schedule.findByIdAndUpdate(req.params.id, req.body, { new: true });
 
         res.status(200).json(schedule);
     } catch (error) {
-        res.status(500).json({ message: 'Server Error' });
+        console.error(error);
+        res.status(500).json({ message: 'Server Error', error: error.message });
     }
 };
 
@@ -136,6 +188,7 @@ const deleteSchedule = async (req, res) => {
 module.exports = {
     createSchedule,
     getMySchedules,
+    getSchedule,
     updateSchedule,
     deleteSchedule
 };

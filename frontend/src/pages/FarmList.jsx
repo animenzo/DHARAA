@@ -89,7 +89,7 @@ const FarmCard = ({ farm, onEdit, onDelete }) => {
         </div>
 
         {/* Actions */}
-        <div className="flex gap-3 pt-4 border-t border-gray-100 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+        <div className="flex gap-3 pt-4 border-t border-gray-100  group-hover:opacity-100 transition-opacity duration-200">
           <button
             onClick={() => onEdit(farm._id)}
             className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg bg-white border border-gray-200 text-gray-600 hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 font-semibold transition-all text-sm"

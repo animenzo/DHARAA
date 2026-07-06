@@ -182,9 +182,14 @@ export default function IoTDashboard() {
   });
 
   const getNextRunDate = (schedule) => {
-    if (!schedule?.days || !schedule.time) return null;
-    const now = new Date();
+    if (!schedule || !schedule.time) return null;
     const [hour, minute] = schedule.time.split(":").map(Number);
+    if (schedule.date) {
+      const [year, month, day] = schedule.date.split("-").map(Number);
+      return new Date(year, month - 1, day, hour, minute, 0, 0);
+    }
+    if (!schedule.days) return null;
+    const now = new Date();
     for (let i = 0; i <= 7; i++) {
       const checkDate = new Date(now);
       checkDate.setDate(now.getDate() + i);

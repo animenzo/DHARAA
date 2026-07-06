@@ -53,7 +53,7 @@ const ScheduleCard = ({ schedule, onEdit, onDelete }) => {
         </div>
       </div>
 
-      {/* Time & Duration */}
+      {/* Time & Duration / Target Moisture */}
       <div className="flex items-center gap-6 mb-6">
         <div className="flex items-center gap-2">
           <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center text-blue-500">
@@ -69,29 +69,50 @@ const ScheduleCard = ({ schedule, onEdit, onDelete }) => {
             <FaTint />
           </div>
           <div>
-            <p className="text-xs text-gray-400 font-semibold uppercase">Duration</p>
-            <p className="text-gray-900 font-bold">{schedule.duration} min</p>
+            {schedule.moisture !== undefined && schedule.moisture !== null ? (
+              <>
+                <p className="text-xs text-gray-400 font-semibold uppercase">Target Moisture</p>
+                <p className="text-gray-900 font-bold">{schedule.moisture}%</p>
+              </>
+            ) : (
+              <>
+                <p className="text-xs text-gray-400 font-semibold uppercase">Duration</p>
+                <p className="text-gray-900 font-bold">{schedule.duration} min</p>
+              </>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Days Visualizer */}
+      {/* Date / Repeat Days Selection */}
       <div className="mb-6">
-        <p className="text-xs text-gray-400 font-semibold uppercase mb-2">Repeat Days</p>
-        <div className="flex justify-between">
-          {schedule.days.map((isActive, index) => (
-            <div 
-              key={index}
-              className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
-                isActive 
-                  ? 'bg-emerald-500 text-white shadow-md shadow-emerald-200' 
-                  : 'bg-gray-100 text-gray-300'
-              }`}
-            >
-              {daysMap[index]}
+        {schedule.date ? (
+          <div>
+            <p className="text-xs text-gray-400 font-semibold uppercase mb-2">Schedule Date</p>
+            <div className="flex items-center gap-2 text-sm text-gray-700 bg-gray-50 px-3 py-2 rounded-lg border border-gray-100">
+              <FaCalendarAlt className="text-emerald-500" />
+              <span className="font-bold">{schedule.date}</span>
             </div>
-          ))}
-        </div>
+          </div>
+        ) : schedule.days ? (
+          <div>
+            <p className="text-xs text-gray-400 font-semibold uppercase mb-2">Repeat Days</p>
+            <div className="flex justify-between">
+              {schedule.days.map((isActive, index) => (
+                <div 
+                  key={index}
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                    isActive 
+                      ? 'bg-emerald-500 text-white shadow-md shadow-emerald-200' 
+                      : 'bg-gray-100 text-gray-300'
+                  }`}
+                >
+                  {daysMap[index]}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {/* Actions (Hidden by default, shown on hover/mobile) */}

@@ -77,7 +77,7 @@ async function _runChecks() {
 
     // Only load active schedules — sort by user for cache efficiency
     const schedules = await Schedule.find({ status: "Active" })
-      .select("user farmId name time duration days nextRun")
+      .select("user farmId name time duration days date moisture nextRun")
       .lean();
 
     if (schedules.length === 0) return;
@@ -112,8 +112,17 @@ async function _runChecks() {
 async function _checkSchedule(schedule, now, dayOfWeek, hhmm, fired) {
   const schedId = schedule._id.toString();
 
-  // ── 1. Does today match one of the schedule's active days? ──────────────────
-  if (!schedule.days || !schedule.days[dayOfWeek]) return;
+  // ── 1. Does today match date or days? ──────────────────────────────────────
+  if (schedule.date) {
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const dateNum = String(now.getDate()).padStart(2, "0");
+    const localTodayStr = `${year}-${month}-${dateNum}`;
+    
+    if (schedule.date !== localTodayStr) return;
+  } else {
+    if (!schedule.days || !schedule.days[dayOfWeek]) return;
+  }
 
   // ── 2. Does current HH:MM match? ────────────────────────────────────────────
   if (schedule.time !== hhmm) return;
@@ -125,9 +134,6 @@ async function _checkSchedule(schedule, now, dayOfWeek, hhmm, fired) {
   }
 
   // ── 4. Guard: skip if AI Auto is managing this farm ─────────────────────────
-  // IrrigationExecutionManager owns irrigation when aiAutoEnabled=true.
-  // Firing a schedule on top of it risks double-running the pump or fighting
-  // the AI's stop signal.
   if (schedule.farmId) {
     const farm = await Farm.findById(schedule.farmId).select("aiAutoEnabled").lean();
     if (farm?.aiAutoEnabled) {
@@ -139,8 +145,6 @@ async function _checkSchedule(schedule, now, dayOfWeek, hhmm, fired) {
   }
 
   // ── 5. Find the device linked to THIS farm, not just any device for the user ─
-  // Using schedule.farmId prevents misfires when a user has multiple farms with
-  // separate devices: the wrong device would receive the pump command otherwise.
   let device;
   if (schedule.farmId) {
     const farmDoc = await Farm.findById(schedule.farmId).select("device").lean();
@@ -148,7 +152,6 @@ async function _checkSchedule(schedule, now, dayOfWeek, hhmm, fired) {
       device = await Device.findById(farmDoc.device).lean();
     }
   }
-  // Fallback: legacy schedules created before farmId was required
   if (!device) {
     device = await Device.findOne({ user: schedule.user, isActive: true }).lean();
   }
@@ -175,6 +178,7 @@ async function _checkSchedule(schedule, now, dayOfWeek, hhmm, fired) {
     actuator: "pump",
     value:    1,
     source:   "schedule",
+    targetMoisture: schedule.moisture !== undefined && schedule.moisture !== null ? schedule.moisture : null,
   });
 
   console.log(
@@ -186,41 +190,45 @@ async function _checkSchedule(schedule, now, dayOfWeek, hhmm, fired) {
   fired.push(schedule.name);
 
   // ── 7. Auto-stop pump after duration minutes ──────────────────────────────
-  const durationMs = (schedule.duration || 5) * 60 * 1000;
+  if (schedule.duration) {
+    const durationMs = schedule.duration * 60 * 1000;
 
-  setTimeout(async () => {
-    try {
-      // Re-fetch device status — it may have gone offline during irrigation
-      const freshDevice = await Device.findById(device._id).lean();
-      if (!freshDevice || freshDevice.status === "offline") {
-        console.warn(
-          `[ScheduleRunner] Auto-stop skipped — device ${device.deviceId} went offline during irrigation`
+    setTimeout(async () => {
+      try {
+        // Re-fetch device status — it may have gone offline during irrigation
+        const freshDevice = await Device.findById(device._id).lean();
+        if (!freshDevice || freshDevice.status === "offline") {
+          console.warn(
+            `[ScheduleRunner] Auto-stop skipped — device ${device.deviceId} went offline during irrigation`
+          );
+          return;
+        }
+
+        await issueCommand({
+          userId:   schedule.user.toString(),
+          device:   freshDevice,
+          actuator: "pump",
+          value:    0,
+          source:   "schedule",
+        });
+        console.log(
+          `[ScheduleRunner] 🛑 Auto-stop: pump OFF for schedule "${schedule.name}" after ${schedule.duration}min`
         );
-        return;
+
+        // Update nextRun on the schedule document
+        await _updateNextRun(schedule._id);
+
+      } catch (err) {
+        console.error(
+          `[ScheduleRunner] Auto-stop error for schedule "${schedule.name}":`,
+          err.message
+        );
       }
-
-      await issueCommand({
-        userId:   schedule.user.toString(),
-        device:   freshDevice,
-        actuator: "pump",
-        value:    0,
-        source:   "schedule",
-      });
-      console.log(payload);
-      console.log(
-        `[ScheduleRunner] 🛑 Auto-stop: pump OFF for schedule "${schedule.name}" after ${schedule.duration}min`
-      );
-
-      // Update nextRun on the schedule document
-      await _updateNextRun(schedule._id);
-
-    } catch (err) {
-      console.error(
-        `[ScheduleRunner] Auto-stop error for schedule "${schedule.name}":`,
-        err.message
-      );
-    }
-  }, durationMs);
+    }, durationMs);
+  } else {
+    // For moisture-based, update nextRun immediately
+    await _updateNextRun(schedule._id);
+  }
 }
 
 // =============================================================================
@@ -231,6 +239,14 @@ async function _updateNextRun(scheduleId) {
   try {
     const schedule = await Schedule.findById(scheduleId).lean();
     if (!schedule) return;
+
+    if (schedule.date) {
+      // One-time schedule. Pause it now that it has been triggered.
+      await Schedule.findByIdAndUpdate(scheduleId, { status: "Paused", nextRun: null });
+      return;
+    }
+
+    if (!schedule.days) return;
 
     const [hour, minute] = schedule.time.split(":").map(Number);
     const now = new Date();
