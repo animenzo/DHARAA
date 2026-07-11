@@ -7,6 +7,7 @@ const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || "";
 const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
 const NVIDIA_VISION_MODEL =
   process.env.NVIDIA_VISION_MODEL || "meta/llama-4-maverick-17b-128e-instruct";
+const DISEASE_NVIDIA_TIMEOUT_MS = Number(process.env.DISEASE_NVIDIA_TIMEOUT_MS) || 90000;
 
 const getAxiosErrorSummary = (err) => {
   if (!err) return "Unknown error";
@@ -167,7 +168,7 @@ const detectPlantDiseaseWithNvidia = async (imageBuffer, mimeType, language = "e
       ],
     },
     {
-      timeout: 30000,
+      timeout: DISEASE_NVIDIA_TIMEOUT_MS,
       headers: {
         Authorization: `Bearer ${NVIDIA_API_KEY}`,
         "Content-Type": "application/json",

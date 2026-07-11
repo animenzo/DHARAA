@@ -6,6 +6,58 @@
 
 import API from "./api";
 
+const compressImageForDiseaseScan = (imageFile) =>
+  new Promise((resolve) => {
+    if (!imageFile?.type?.startsWith("image/")) return resolve(imageFile);
+
+    const image = new Image();
+    const objectUrl = URL.createObjectURL(imageFile);
+
+    image.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+
+      const maxSide = 1024;
+      const scale = Math.min(1, maxSide / Math.max(image.width, image.height));
+
+      if (scale >= 1 && imageFile.size <= 900 * 1024) {
+        resolve(imageFile);
+        return;
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.width * scale));
+      canvas.height = Math.max(1, Math.round(image.height * scale));
+
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            resolve(imageFile);
+            return;
+          }
+
+          resolve(
+            new File([blob], imageFile.name.replace(/\.[^.]+$/, ".jpg"), {
+              type: "image/jpeg",
+              lastModified: Date.now(),
+            })
+          );
+        },
+        "image/jpeg",
+        0.82
+      );
+    };
+
+    image.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(imageFile);
+    };
+
+    image.src = objectUrl;
+  });
+
 // ─────────────────────────────────────────────────────────────────────────────
 // CHAT
 // ─────────────────────────────────────────────────────────────────────────────
@@ -89,8 +141,9 @@ export const getEasyCropRecommendation = async (easyData) => {
  */
 export const detectPlantDisease = async (imageFile, language = "en") => {
   // Must send as multipart/form-data so Express multer can parse it
+  const uploadFile = await compressImageForDiseaseScan(imageFile);
   const formData = new FormData();
-  formData.append("file", imageFile);
+  formData.append("file", uploadFile);
   formData.append("language", language);
 
   const response = await API.post("/api/ai/disease/predict", formData, {
