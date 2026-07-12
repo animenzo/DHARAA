@@ -3,11 +3,9 @@
 const axios = require("axios");
 
 const FASTAPI_URL = process.env.FASTAPI_URL || "http://localhost:8000";
-const NVIDIA_API_KEY = process.env.NVIDIA_API_KEY || "";
-const NVIDIA_BASE_URL = "https://integrate.api.nvidia.com/v1";
-const NVIDIA_VISION_MODEL =
-  process.env.NVIDIA_VISION_MODEL || "meta/llama-4-maverick-17b-128e-instruct";
-const DISEASE_NVIDIA_TIMEOUT_MS = Number(process.env.DISEASE_NVIDIA_TIMEOUT_MS) || 90000;
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || process.env.VITE_GEMINI_API_KEY || "";
+const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const DISEASE_GEMINI_TIMEOUT_MS = Number(process.env.DISEASE_GEMINI_TIMEOUT_MS) || 90000;
 
 const getAxiosErrorSummary = (err) => {
   if (!err) return "Unknown error";
@@ -88,7 +86,7 @@ const extractJsonObject = (text) => {
   }
 };
 
-const normalizeNvidiaDiseaseResult = (raw, language) => {
+const normalizeGeminiDiseaseResult = (raw, language) => {
   const confidenceMap = {
     high: 0.92,
     medium: 0.75,
@@ -116,20 +114,26 @@ const normalizeNvidiaDiseaseResult = (raw, language) => {
     language,
     top3: [{ disease: fullName, confidence }],
     is_healthy: Boolean(raw.is_healthy),
-    powered_by: "nvidia_llama_maverick",
+    powered_by: "gemini_2_5_flash_backend",
   };
 };
 
-const detectPlantDiseaseWithNvidia = async (imageBuffer, mimeType, language = "en") => {
-  if (!NVIDIA_API_KEY) {
-    const err = new Error("NVIDIA_API_KEY is not configured.");
-    err.code = "NVIDIA_NOT_CONFIGURED";
+const detectPlantDiseaseWithGemini = async (imageBuffer, mimeType, language = "en") => {
+  if (!GEMINI_API_KEY) {
+    const err = new Error("GEMINI_API_KEY is not configured.");
+    err.code = "GEMINI_NOT_CONFIGURED";
     throw err;
   }
 
-  const imageUrl = `data:${mimeType || "image/jpeg"};base64,${imageBuffer.toString("base64")}`;
-  const schemaHint =
-    'Respond ONLY with valid JSON, no markdown, in exactly this shape: ' +
+  const languageInstruction =
+    language === "hi"
+      ? "Reply in simple Hindi for Indian farmers. All JSON string values must be in Hindi, except fixed JSON keys. Use Hindi disease/crop names where commonly known."
+      : "Reply in simple English for farmers. All JSON string values must be in English.";
+  const prompt =
+    `Analyze this crop leaf image for disease. ${languageInstruction} ` +
+    "If it appears to be wheat, diagnose wheat diseases instead of forcing PlantVillage labels. " +
+    "For confidence_label use High, Medium, or Low. For severity use None, Mild, Moderate, High, or Severe. " +
+    "Respond only with valid JSON, no markdown, in exactly this shape: " +
     '{"crop_name":"<plant/crop name visible in image>",' +
     '"disease_name":"<disease name, or Healthy if no disease visible>",' +
     '"is_healthy":<true or false>,' +
@@ -139,51 +143,46 @@ const detectPlantDiseaseWithNvidia = async (imageBuffer, mimeType, language = "e
     '"treatment":"<practical treatment>",' +
     '"organic_remedy":"<one organic remedy>",' +
     '"prevention":"<one prevention tip>"}';
-  const prompt =
-    `This is a photo of a plant leaf/crop. Language: ${language}. ` +
-    "Examine the image carefully and determine if the plant is healthy or affected by a disease. " +
-    "If it appears to be wheat, diagnose wheat diseases instead of forcing PlantVillage labels. " +
-    schemaHint;
 
   const response = await axios.post(
-    `${NVIDIA_BASE_URL}/chat/completions`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
     {
-      model: NVIDIA_VISION_MODEL,
-      temperature: 0.2,
-      max_tokens: 600,
-      messages: [
+      contents: [
         {
           role: "user",
-          content: [
+          parts: [
+            { text: prompt },
             {
-              type: "text",
-              text: prompt,
-            },
-            {
-              type: "image_url",
-              image_url: { url: imageUrl },
+              inline_data: {
+                mime_type: mimeType || "image/jpeg",
+                data: imageBuffer.toString("base64"),
+              },
             },
           ],
         },
       ],
+      generationConfig: {
+        temperature: 0.2,
+        maxOutputTokens: 700,
+        responseMimeType: "application/json",
+      },
     },
     {
-      timeout: DISEASE_NVIDIA_TIMEOUT_MS,
+      timeout: DISEASE_GEMINI_TIMEOUT_MS,
       headers: {
-        Authorization: `Bearer ${NVIDIA_API_KEY}`,
         "Content-Type": "application/json",
       },
     }
   );
 
-  const content = response.data?.choices?.[0]?.message?.content;
+  const content = response.data?.candidates?.[0]?.content?.parts?.[0]?.text;
   const parsed = extractJsonObject(content);
 
   if (!parsed) {
-    throw new Error("NVIDIA returned an unreadable disease diagnosis.");
+    throw new Error("Gemini returned an unreadable disease diagnosis.");
   }
 
-  return normalizeNvidiaDiseaseResult(parsed, language);
+  return normalizeGeminiDiseaseResult(parsed, language);
 };
 
 const detectPlantDiseaseWithFastApi = async (imageBuffer, mimeType, language = "en") => {
@@ -204,27 +203,27 @@ const detectPlantDiseaseWithFastApi = async (imageBuffer, mimeType, language = "
 };
 
 /**
- * Detect plant disease with NVIDIA first, then FastAPI as fallback.
+ * Detect plant disease with Gemini first, then FastAPI as fallback.
  * @param {Buffer} imageBuffer  Raw image bytes
  * @param {string} mimeType     e.g. "image/jpeg"
  * @param {string} language     "en" | "hi"
  */
 const detectPlantDisease = async (imageBuffer, mimeType, language = "en") => {
   try {
-    return await detectPlantDiseaseWithNvidia(imageBuffer, mimeType, language);
-  } catch (nvidiaErr) {
-    const nvidiaError = getAxiosErrorSummary(nvidiaErr);
+    return await detectPlantDiseaseWithGemini(imageBuffer, mimeType, language);
+  } catch (geminiErr) {
+    const geminiError = getAxiosErrorSummary(geminiErr);
     console.warn(
-      "[aiService.detectPlantDisease] NVIDIA failed, falling back to FastAPI:",
-      nvidiaError
+      "[aiService.detectPlantDisease] Gemini failed, falling back to FastAPI:",
+      geminiError
     );
 
     try {
       return await detectPlantDiseaseWithFastApi(imageBuffer, mimeType, language);
     } catch (fastApiErr) {
-      const err = new Error("Both NVIDIA and FastAPI disease detection failed.");
+      const err = new Error("Both Gemini and FastAPI disease detection failed.");
       err.code = "AI_DISEASE_UNAVAILABLE";
-      err.nvidiaError = nvidiaError;
+      err.geminiError = geminiError;
       err.fastApiError = getAxiosErrorSummary(fastApiErr);
       throw err;
     }

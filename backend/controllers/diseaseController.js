@@ -35,8 +35,8 @@ const predictDisease = async (req, res) => {
     return res.status(200).json({ success: true, ...data });
   } catch (err) {
     console.error("[diseaseController.predictDisease] Error:", err.message);
-    if (err.nvidiaError) {
-      console.error("[diseaseController.predictDisease] NVIDIA:", err.nvidiaError);
+    if (err.geminiError) {
+      console.error("[diseaseController.predictDisease] Gemini:", err.geminiError);
     }
     if (err.fastApiError) {
       console.error("[diseaseController.predictDisease] FastAPI:", err.fastApiError);
@@ -46,7 +46,7 @@ const predictDisease = async (req, res) => {
       return res.status(503).json({
         error: "Disease detection is temporarily unavailable.",
         details: {
-          nvidia: err.nvidiaError,
+          gemini: err.geminiError,
           fastapi: err.fastApiError,
         },
       });

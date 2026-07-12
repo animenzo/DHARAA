@@ -6,9 +6,6 @@
 
 import API from "./api";
 
-const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-const GEMINI_MODEL = import.meta.env.VITE_GEMINI_MODEL || "gemini-2.5-flash";
-
 const compressImageForDiseaseScan = (imageFile) =>
   new Promise((resolve) => {
     if (!imageFile?.type?.startsWith("image/")) return resolve(imageFile);
@@ -60,139 +57,6 @@ const compressImageForDiseaseScan = (imageFile) =>
 
     image.src = objectUrl;
   });
-
-const fileToBase64 = (file) =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader();
-
-    reader.onload = () => {
-      const result = String(reader.result || "");
-      resolve(result.split(",")[1] || "");
-    };
-
-    reader.onerror = () => reject(reader.error || new Error("Failed to read image."));
-    reader.readAsDataURL(file);
-  });
-
-const extractJsonObject = (text) => {
-  if (!text || typeof text !== "string") return null;
-
-  try {
-    return JSON.parse(text);
-  } catch {
-    const match = text.match(/\{[\s\S]*\}/);
-    if (!match) return null;
-
-    try {
-      return JSON.parse(match[0]);
-    } catch {
-      return null;
-    }
-  }
-};
-
-const normalizeGeminiDiseaseResult = (raw, language) => {
-  const confidenceMap = {
-    high: 0.92,
-    medium: 0.75,
-    low: 0.55,
-    unknown: 0.5,
-  };
-
-  const cropName = String(raw.crop_name || raw.crop || "").trim();
-  const diseaseName = String(raw.disease_name || raw.disease || "Unknown disease").trim();
-  const fullName = cropName ? `${cropName} - ${diseaseName}` : diseaseName;
-  const confidenceLabel = String(raw.confidence_label || "medium").toLowerCase();
-  const confidence =
-    typeof raw.confidence === "number"
-      ? Math.max(0, Math.min(1, raw.confidence))
-      : confidenceMap[confidenceLabel] || 0.75;
-
-  return {
-    success: true,
-    disease: fullName,
-    confidence,
-    severity: raw.severity || "Unknown",
-    treatment: raw.treatment || raw.recommended_treatment || "",
-    prevention: raw.prevention || "",
-    organic_remedy: raw.organic_remedy || null,
-    symptoms: raw.symptoms_observed || raw.symptoms || null,
-    language,
-    top3: [{ disease: fullName, confidence }],
-    is_healthy: Boolean(raw.is_healthy),
-    powered_by: "gemini_frontend",
-  };
-};
-
-const detectPlantDiseaseWithGemini = async (imageFile, language = "en") => {
-  if (!GEMINI_API_KEY) {
-    throw new Error("VITE_GEMINI_API_KEY is not configured.");
-  }
-
-  const imageBase64 = await fileToBase64(imageFile);
-  const languageInstruction =
-    language === "hi"
-      ? "Reply in simple Hindi for Indian farmers. All JSON string values must be in Hindi, except fixed JSON keys. Use Hindi disease/crop names where commonly known."
-      : "Reply in simple English for farmers. All JSON string values must be in English.";
-  const prompt =
-    `Analyze this crop leaf image for disease. ${languageInstruction} ` +
-    "If it appears to be wheat, diagnose wheat diseases instead of forcing PlantVillage labels. " +
-    "For confidence_label use High, Medium, or Low. For severity use None, Mild, Moderate, High, or Severe. " +
-    "Respond only with valid JSON, no markdown, in exactly this shape: " +
-    '{"crop_name":"<plant/crop name visible in image>",' +
-    '"disease_name":"<disease name, or Healthy if no disease visible>",' +
-    '"is_healthy":<true or false>,' +
-    '"confidence_label":"<High|Medium|Low>",' +
-    '"severity":"<None|Mild|Moderate|High|Severe>",' +
-    '"symptoms_observed":"<1-2 sentences describing visible symptoms>",' +
-    '"treatment":"<practical treatment>",' +
-    '"organic_remedy":"<one organic remedy>",' +
-    '"prevention":"<one prevention tip>"}';
-
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_API_KEY}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [
-              { text: prompt },
-              {
-                inline_data: {
-                  mime_type: imageFile.type || "image/jpeg",
-                  data: imageBase64,
-                },
-              },
-            ],
-          },
-        ],
-        generationConfig: {
-          temperature: 0.2,
-          maxOutputTokens: 700,
-          responseMimeType: "application/json",
-        },
-      }),
-    }
-  );
-
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(`Gemini failed with ${response.status}: ${detail}`);
-  }
-
-  const data = await response.json();
-  const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-  const parsed = extractJsonObject(text);
-
-  if (!parsed) {
-    throw new Error("Gemini returned an unreadable disease diagnosis.");
-  }
-
-  return normalizeGeminiDiseaseResult(parsed, language);
-};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CHAT
@@ -278,39 +142,17 @@ export const getEasyCropRecommendation = async (easyData) => {
 export const detectPlantDisease = async (imageFile, language = "en") => {
   // Must send as multipart/form-data so Express multer can parse it
   const uploadFile = await compressImageForDiseaseScan(imageFile);
-  let geminiFailure = null;
-
-  try {
-    return await detectPlantDiseaseWithGemini(uploadFile, language);
-  } catch (geminiError) {
-    geminiFailure = geminiError;
-    console.warn(
-      "[aiApi.detectPlantDisease] Gemini failed, falling back to backend:",
-      geminiError.message
-    );
-  }
-
   const formData = new FormData();
   formData.append("file", uploadFile);
   formData.append("language", language);
 
-  try {
-    const response = await API.post("/api/ai/disease/predict", formData, {
-      headers: {
-        // Let the browser set Content-Type with the correct multipart boundary
-        "Content-Type": "multipart/form-data",
-      },
-    });
-    return response.data;
-  } catch (backendError) {
-    const backendMessage =
-      backendError?.response?.data?.details
-        ? JSON.stringify(backendError.response.data.details)
-        : backendError?.response?.data?.error || backendError.message;
-    throw new Error(
-      `Gemini failed: ${geminiFailure?.message || "unknown"}. Backend failed: ${backendMessage}`
-    );
-  }
+  const response = await API.post("/api/ai/disease/predict", formData, {
+    headers: {
+      // Let the browser set Content-Type with the correct multipart boundary
+      "Content-Type": "multipart/form-data",
+    },
+  });
+  return response.data;
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
