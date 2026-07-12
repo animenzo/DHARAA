@@ -157,7 +157,6 @@ async function buildSmartIrrigationPayload(farm, options = {}) {
   const device = await findFarmDevice(farm, options.deviceId);
   const latestSensorReading = await getLatestSensorReading(farm, device);
   if (!device) throw new Error(`No device is linked to farm ${farm._id}.`);
-  if (!latestSensorReading) throw new Error(`No sensor data is available for device ${device.deviceId}.`);
   if (!farm.current_crop || typeof farm.current_crop !== "object") {
     throw new Error("Farm crop master data was not populated.");
   }
@@ -166,8 +165,12 @@ async function buildSmartIrrigationPayload(farm, options = {}) {
   }
 
   const tankCapacityLiters = calculateTankWaterLiter(farm);
-  const waterLevelPercent = Number(latestSensorReading.waterLevelPercent ?? latestSensorReading.waterLevel);
-  const currentWaterLiters = Number(latestSensorReading.currentWaterLiters);
+  const waterLevelPercent = latestSensorReading
+    ? Number(latestSensorReading.waterLevelPercent ?? latestSensorReading.waterLevel)
+    : null;
+  const currentWaterLiters = latestSensorReading
+    ? Number(latestSensorReading.currentWaterLiters)
+    : null;
   const tankWaterLiters = Number.isFinite(currentWaterLiters)
     ? currentWaterLiters
     : Number.isFinite(waterLevelPercent)
@@ -189,13 +192,13 @@ async function buildSmartIrrigationPayload(farm, options = {}) {
       id: device._id.toString(),
       deviceId: device.deviceId,
       status: device.status || "unknown",
-      pumpStatus: Number(latestSensorReading.pump) || 0,
+      pumpStatus: latestSensorReading ? (Number(latestSensorReading.pump) || 0) : 0,
     },
     sensorData: {
-      moistureFraction: normalizeMoistureFraction(latestSensorReading.avgMoisture),
+      moistureFraction: normalizeMoistureFraction(latestSensorReading?.avgMoisture),
       tankWaterLiters,
       waterLevelPercent: Number.isFinite(waterLevelPercent) ? waterLevelPercent : null,
-      recordedAt: latestSensorReading.recordedAt?.toISOString?.() || null,
+      recordedAt: latestSensorReading?.recordedAt?.toISOString?.() || null,
     },
     crop: farm.current_crop,
     soil: farm.soilType,
@@ -288,6 +291,7 @@ function mapHourlyForecast(rows) {
 
 function shouldRegenerateCropSchedule(existingSchedule, farm, deviceId) {
   if (!existingSchedule) return true;
+  if (!existingSchedule.schedule || existingSchedule.schedule.length === 0) return true;
 
   return (
     valuesChanged(existingSchedule.CropName, getCropName(farm.current_crop)) ||
@@ -374,12 +378,10 @@ async function storeSmartIrrigationResult({ farm, deviceId, result, latestSensor
   const hourlyForecast = mapHourlyForecast(prediction.hourlyForecast);
   const existingCropSchedule = await CropSchedule.findOne({
     farm: farmId,
-    deviceId,
   }).lean();
   const shouldStoreCropSchedule = shouldRegenerateCropSchedule(existingCropSchedule, farm, deviceId);
   const dailySelector = {
     farm: farmId,
-    deviceId,
   };
   const schedulePayload = normalizeSchedulePayload(result.schedule);
   const waterRequirementPayload = normalizeWaterRequirementPayload(result.waterRequirement);
@@ -397,7 +399,7 @@ async function storeSmartIrrigationResult({ farm, deviceId, result, latestSensor
 
   const writeTasks = [
     FutureMoisturePrediction.findOneAndUpdate(
-      { farm: farmId, deviceId },
+      { farm: farmId },
       {
         farm: farmId,
         deviceId,
@@ -407,7 +409,7 @@ async function storeSmartIrrigationResult({ farm, deviceId, result, latestSensor
       { upsert: true, new: true, setDefaultsOnInsert: true }
     ),
     DayForecast.findOneAndUpdate(
-      { farm: farmId, deviceId },
+      { farm: farmId },
       {
         farm: farmId,
         deviceId,
@@ -417,7 +419,7 @@ async function storeSmartIrrigationResult({ farm, deviceId, result, latestSensor
       { upsert: true, new: true, setDefaultsOnInsert: true }
     ),
     HourlyWeatherForecast.findOneAndUpdate(
-      { farm: farmId, deviceId },
+      { farm: farmId },
       {
         farm: farmId,
         deviceId,
@@ -431,7 +433,7 @@ async function storeSmartIrrigationResult({ farm, deviceId, result, latestSensor
   if (shouldStoreCropSchedule) {
     writeTasks.push(
       CropSchedule.findOneAndUpdate(
-        { farm: farmId, deviceId },
+        { farm: farmId },
         {
           farm: farmId,
           deviceId,
