@@ -23,8 +23,8 @@ const WEATHER_RECHECK_MS = 15 * 60 * 1000;
 const PUMP_ON_MS = (parseInt(process.env.IRRIGATION_PUMP_ON_MINUTES, 10) || 4) * 60 * 1000;
 const PUMP_OFF_MS = (parseInt(process.env.IRRIGATION_PUMP_OFF_MINUTES, 10) || 2) * 60 * 1000;
 const MAX_RUNTIME_MS = (parseInt(process.env.IRRIGATION_MAX_RUNTIME_MINUTES, 10) || 180) * 60 * 1000;
-const MIN_SAFE_TANK_LEVEL = parseFloat(process.env.IRRIGATION_MIN_SAFE_TANK_LEVEL_PERCENT || "0");
-const CRITICAL_TANK_LEVEL = parseFloat(process.env.IRRIGATION_CRITICAL_TANK_LEVEL_PERCENT || "5");
+const MIN_SAFE_TANK_LEVEL = parseFloat(process.env.IRRIGATION_MIN_SAFE_TANK_LEVEL_PERCENT || "1");
+const CRITICAL_TANK_LEVEL = parseFloat(process.env.IRRIGATION_CRITICAL_TANK_LEVEL_PERCENT || "1");
 const THRESHOLD = parseFloat(process.env.IRRIGATION_EMERGENCY_MARGIN_PERCENT || "10");
 const THUNDERSTORM_CODES = new Set([95, 96, 99]);
 
