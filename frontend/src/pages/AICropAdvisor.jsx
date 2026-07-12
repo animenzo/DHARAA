@@ -344,13 +344,14 @@ export default function AICropAdvisor() {
           data
         )
       );
-    } catch {
+    } catch (error) {
+      console.error("[AICropAdvisor.handleDiseaseDetect] Disease detection failed:", error);
       pushMessage(
         createMessage(
           "ai",
           language === "hi"
             ? "रोग पहचान में त्रुटि हुई। कृपया दूसरी फोटो आज़माएं।"
-            : "Disease detection failed. Please try another image.",
+            : `Disease detection failed. ${error?.message || "Please try another image."}`,
           "text"
         )
       );
