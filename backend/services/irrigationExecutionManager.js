@@ -18,7 +18,7 @@ function calculateMoistureThreshold(farm) {
   return require("./smartIrrigationFarmSyncService").calculateMoistureThreshold(farm);
 }
 
-const CHECK_INTERVAL_MS = 6000;
+const CHECK_INTERVAL_MS = 15000;
 const WEATHER_RECHECK_MS = 15 * 60 * 1000;
 const PUMP_ON_MS = (parseInt(process.env.IRRIGATION_PUMP_ON_MINUTES, 10) || 4) * 60 * 1000;
 const PUMP_OFF_MS = (parseInt(process.env.IRRIGATION_PUMP_OFF_MINUTES, 10) || 2) * 60 * 1000;
@@ -590,7 +590,7 @@ async function buildContext(execution) {
   const currentForecast = await getCurrentForecast(execution.farm);
 
   const moisture = extractMoisture(latest);
-  const tankLevel = normalizePercent(latest?.waterLevel, 100);
+  const tankLevel = normalizePercent(latest?.waterLevelPercent, 100);
   const rainActive = Number(latest?.rain) > 0;
   const weatherCode = Number(currentForecast?.WeatherCode);
   const thunderstorm = THUNDERSTORM_CODES.has(weatherCode);
@@ -731,7 +731,7 @@ async function createEmergencyExecutions() {
         : "Emergency threshold reached — waiting for device to come online",
       emergency: true,
       moistureBefore: moisture,
-      tankLevelBefore: normalizePercent(latest.waterLevel, 100),
+      tankLevelBefore: normalizePercent(latest.waterLevelPercent, 100),
       sourceSchedule: { emergencyTrigger: trigger },
       sourceWaterRequirement: mostRecentPlan.sourceWaterRequirement,
     });
@@ -1010,7 +1010,7 @@ const stopMoisture = requiredTheta * 1.10;
         moistureBefore: moisture,
 
         tankLevelBefore:
-          normalizePercent(latest.waterLevel, 100),
+          normalizePercent(latest.waterLevelPercent, 100),
 
         sourceSchedule: {
           emergencyTrigger: trigger
