@@ -20,12 +20,12 @@ const DashboardLayout = () => {
         {/* Mobile Header (Only visible on small screens) */}
         <header className="lg:hidden bg-white h-16 border-b flex items-center justify-between px-4 shrink-0">
           <div className="font-bold text-lg text-emerald-800">DHARAA</div>
-          <button
+          {/* <button
             onClick={() => setIsSidebarOpen(true)}
             className="p-2 rounded-lg hover:bg-gray-100 text-gray-600"
           >
             <FaBars size={24} />
-          </button>
+          </button> */}
         </header>
 
         {/* Scrollable Page Content */}

@@ -31,6 +31,7 @@ import API from "../services/api";
 import { getSmartIrrigationResult } from "../services/aiApi";
 import { getCropLabel, formatFarmAreaAcres } from "../utils/farmDisplay";
 import iotApi from "../services/iotApi";
+import SensorGauge from "../components/iot/SensorGauge";
 
 function toArray(value) {
   return Array.isArray(value) ? value : [];
@@ -132,7 +133,9 @@ const TodayStateTooltip = ({ active, payload }) => {
                 <span className="text-slate-500 font-medium">{item.name}:</span>
               </div>
               <span className="font-bold text-slate-700">
-                {Number(item.value).toFixed(2)}%
+                {item.name.toLowerCase().includes("theta") && !item.name.toLowerCase().includes("error")
+                  ? Number(item.value).toFixed(3)
+                  : `${Number(item.value).toFixed(2)}%`}
               </span>
             </div>
           ))}
@@ -209,7 +212,7 @@ export default function CropAnalytics() {
       smartResult?.futureMoisture?.predictions,
       smartResult?.futureMoisture
     );
-    
+
     // Sort by date to make sure the graph is ordered correctly
     return [...predictions].sort((a, b) => new Date(a.Date) - new Date(b.Date));
   }, [smartResult]);
@@ -229,11 +232,11 @@ export default function CropAnalytics() {
         const Kc = toNumber(item.Kc);
         return Date && Kc !== null
           ? {
-              ...item,
-              Date,
-              Kc,
-              DayAfterSowing: toNumber(item.DayAfterSowing),
-            }
+            ...item,
+            Date,
+            Kc,
+            DayAfterSowing: toNumber(item.DayAfterSowing),
+          }
           : null;
       })
       .filter(Boolean);
@@ -247,7 +250,7 @@ export default function CropAnalytics() {
       smartResult?.prediction?.todayState,
       smartResult?.prediction?.today_state
     );
-    
+
     return [...todayState]
       .sort((a, b) => new Date(a.Timestamp || a.Date) - new Date(b.Timestamp || b.Date))
       .map((item) => {
@@ -259,7 +262,7 @@ export default function CropAnalytics() {
           item.Physics_Moisture ?? item.PhysicsTheta ?? item.physicsTheta ?? item.physics_moisture
         );
         const errorPercent = normalizeTheta(item.Error ?? item.ErrorPercent ?? item.error);
-        
+
         return {
           ...item,
           Date,
@@ -273,10 +276,19 @@ export default function CropAnalytics() {
       .filter((item) => item.Date && (item.SensorTheta !== null || item.PhysicsTheta !== null || item.ErrorPercent !== null));
   }, [smartResult]);
 
+  // Map todayStateData to fraction (0 to 1) for the Theta chart
+  const thetaChartData = useMemo(() => {
+    return todayStateData.map((item) => ({
+      ...item,
+      SensorTheta: item.SensorTheta !== null && item.SensorTheta !== undefined ? item.SensorTheta / 100 : null,
+      PhysicsTheta: item.PhysicsTheta !== null && item.PhysicsTheta !== undefined ? item.PhysicsTheta / 100 : null,
+    }));
+  }, [todayStateData]);
+
   // Merge Kc Schedule data and TodayState data for Combined Multi-axis Chart
   const combinedChartData = useMemo(() => {
     const merged = {};
-    
+
     kcScheduleData.forEach((item) => {
       const d = item.Date;
       merged[d] = {
@@ -288,7 +300,7 @@ export default function CropAnalytics() {
         ErrorPercent: null,
       };
     });
-    
+
     todayStateData.forEach((item) => {
       const d = new Date(item.Date).toISOString().split("T")[0];
       if (!merged[d]) {
@@ -309,17 +321,23 @@ export default function CropAnalytics() {
         }
       }
     });
-    
-    return Object.values(merged).sort((a, b) => new Date(a.Date) - new Date(b.Date));
+
+    return Object.values(merged)
+      .sort((a, b) => new Date(a.Date) - new Date(b.Date))
+      .map((item) => ({
+        ...item,
+        SensorTheta: item.SensorTheta !== null && item.SensorTheta !== undefined ? item.SensorTheta / 100 : null,
+        PhysicsTheta: item.PhysicsTheta !== null && item.PhysicsTheta !== undefined ? item.PhysicsTheta / 100 : null,
+      }));
   }, [kcScheduleData, todayStateData]);
 
   // Today's metrics from predictions array
   const todayMetrics = useMemo(() => {
     const source = kcScheduleData.length ? kcScheduleData : predictionsData;
     if (!source.length) return null;
-    
+
     const todayStr = new Date().toDateString();
-    
+
     // Attempt to match today's date, or fallback to the first element (usually represents nearest/today prediction)
     let match = source.find((p) => new Date(p.Date).toDateString() === todayStr);
     if (!match) {
@@ -340,10 +358,66 @@ export default function CropAnalytics() {
       <div className="h-[400px] bg-slate-100 rounded-3xl" />
     </div>
   );
+const fc = selectedFarm?.soilType?.["FC (v%)"] ?? 0;
+const awc = selectedFarm?.soilType?.["AWC"] ?? 0;
+const mad = selectedFarm?.current_crop?.["p (MAD)"] ?? 0;
+
+// MAD stored as 0.55
+const threshold = fc - awc * mad;
+
+// PWP = FC - AWC
+const pwp = fc - awc;
+
+const currentMoisture = avgMoistureVal ?? (todayStateData.length > 0 ? todayStateData.at(-1)?.SensorTheta : null);
+
+const clamp = (val) => Math.min(Math.max(val ?? 0, 0), 100);
+const pwpClamped = clamp(pwp);
+const thresholdClamped = clamp(threshold);
+const fcClamped = clamp(fc);
+const currentClamped = clamp(currentMoisture);
+
+const currentStatus = (() => {
+  if (currentMoisture === null || currentMoisture === undefined) {
+    return {
+      label: "Status Unknown • No Reading",
+      color: "text-slate-500 bg-slate-50/50 border-slate-100",
+      iconColor: "text-slate-400",
+      bannerText: `Optimal irrigation trigger threshold is ${threshold.toFixed(1)}%.`
+    };
+  } else if (currentMoisture < pwp) {
+    return {
+      label: "Critical Wilting • Danger Zone",
+      color: "text-red-700 bg-red-50 border-red-100",
+      iconColor: "text-red-500",
+      bannerText: `Soil moisture (${currentMoisture.toFixed(1)}%) is below Wilting Point (${pwp.toFixed(1)}%). Plants cannot recover!`
+    };
+  } else if (currentMoisture < threshold) {
+    return {
+      label: "Moisture Stress • Under-watered",
+      color: "text-amber-700 bg-amber-50 border-amber-100",
+      iconColor: "text-amber-500",
+      bannerText: `Soil moisture (${currentMoisture.toFixed(1)}%) is below Irrigation Trigger (${threshold.toFixed(1)}%). Start irrigation.`
+    };
+  } else if (currentMoisture <= fc) {
+    return {
+      label: "Healthy Crop • Optimal Growth",
+      color: "text-emerald-700 bg-emerald-50 border-emerald-100",
+      iconColor: "text-emerald-500",
+      bannerText: `Soil moisture (${currentMoisture.toFixed(1)}%) is in the optimal range. No irrigation needed.`
+    };
+  } else {
+    return {
+      label: "Saturated Soil • Excess Moisture",
+      color: "text-blue-700 bg-blue-50 border-blue-100",
+      iconColor: "text-blue-500",
+      bannerText: `Soil moisture (${currentMoisture.toFixed(1)}%) is above Field Capacity (${fc.toFixed(1)}%). Drainage may occur.`
+    };
+  }
+})();
 
   return (
     <div className="p-2 lg:p-4 max-w-7xl mx-auto space-y-6">
-      
+
       {/* ── Page Header & Farm Selector ──────────────────────────────────── */}
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
@@ -409,95 +483,318 @@ export default function CropAnalytics() {
             </div>
           )}
 
-          {/* ── Soil Properties & Real-Time Moisture Card ────────────────── */}
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 hover:shadow-md transition duration-200">
-            <h2 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4 flex items-center gap-2">
-              <FaTint className="text-emerald-500" /> Soil Physics & Real-Time Moisture Status
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Left Column: Soil Constants (FC, PWP, MAD) */}
-              <div className="space-y-4 bg-slate-50/50 p-5 rounded-2xl border border-slate-100">
-                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider border-b pb-2">
-                  Soil Water Constants
-                </h3>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="text-center">
-                    <p className="text-[10px] text-slate-400 font-bold uppercase">Field Capacity (FC)</p>
-                    <p className="text-xl font-black text-slate-800 mt-1">
-                      {selectedFarm?.soilType?.["FC (v%)"] !== undefined 
-                        ? `${selectedFarm.soilType["FC (v%)"]}%` 
-                        : "N/A"}
+          {/* ── Soil Moisture Range & Telemetry Dashboard Grid ────────────────── */}
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+
+            {/* Left Column: Soil Moisture Range (takes 2/3 width on large screens) */}
+            <div className="xl:col-span-2 bg-white rounded-3xl border border-slate-100 shadow-sm p-6 hover:shadow-md transition duration-200 flex flex-col gap-6">
+              
+              {/* Header section with icon, title, subtitle, and dynamic legends */}
+              <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 pb-2">
+                <div className="flex items-center gap-3">
+                  <span className="p-3 rounded-full bg-blue-50 text-blue-600 inline-block shadow-sm">
+                    <FaTint className="text-xl" />
+                  </span>
+                  <div>
+                    <h2 className="text-lg font-black text-slate-800">Soil Moisture Range</h2>
+                    <p className="text-xs text-slate-400 font-semibold mt-0.5">
+                      Moisture levels and irrigation threshold
                     </p>
-                    <span className="text-[9px] text-slate-400 block mt-0.5">Max water retention</span>
                   </div>
-                  <div className="text-center border-x border-slate-200">
-                    <p className="text-[10px] text-slate-400 font-bold uppercase">Wilting Point (PWP)</p>
-                    <p className="text-xl font-black text-slate-800 mt-1">
-                      {selectedFarm?.soilType?.["PWP (v%)"] !== undefined 
-                        ? `${selectedFarm.soilType["PWP (v%)"]}%` 
-                        : "N/A"}
-                    </p>
-                    <span className="text-[9px] text-slate-400 block mt-0.5">Dry limit for plants</span>
+                </div>
+
+                {/* Dynamic legend cards */}
+                <div className="flex flex-wrap sm:flex-nowrap gap-3 w-full lg:w-auto">
+                  {/* PWP Legend Card */}
+                  <div className="bg-amber-50/20 border border-amber-100 rounded-2xl p-3 flex flex-col items-center text-center w-full sm:w-24 md:w-28">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="w-2 h-2 rounded-full bg-amber-800" />
+                      <span className="text-[10px] font-bold text-amber-800 uppercase tracking-wider">PWP</span>
+                    </div>
+                    <span className="text-base font-black text-slate-800">{pwp.toFixed(1)}%</span>
+                    <span className="text-[9px] text-slate-400 font-semibold mt-0.5">Wilting Point</span>
                   </div>
-                  <div className="text-center">
-                    <p className="text-[10px] text-slate-400 font-bold uppercase">MAD Threshold</p>
-                    <p className="text-xl font-black text-slate-800 mt-1">
-                      {selectedFarm?.current_crop?.["p (MAD)"] !== undefined 
-                        ? `${(selectedFarm.current_crop["p (MAD)"] * 100).toFixed(0)}%` 
-                        : "N/A"}
-                    </p>
-                    <span className="text-[9px] text-slate-400 block mt-0.5">Max allowed depletion</span>
+
+                  {/* Threshold Legend Card */}
+                  <div className="bg-orange-50/20 border border-orange-100 rounded-2xl p-3 flex flex-col items-center text-center w-full sm:w-24 md:w-28">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="w-2 h-2 rounded-full bg-orange-500" />
+                      <span className="text-[10px] font-bold text-orange-600 uppercase tracking-wider">Threshold</span>
+                    </div>
+                    <span className="text-base font-black text-orange-600">{threshold.toFixed(1)}%</span>
+                    <span className="text-[9px] text-slate-400 font-semibold mt-0.5">Irrigation Trigger</span>
+                  </div>
+
+                  {/* FC Legend Card */}
+                  <div className="bg-emerald-50/20 border border-emerald-100 rounded-2xl p-3 flex flex-col items-center text-center w-full sm:w-24 md:w-28">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <span className="w-2 h-2 rounded-full bg-emerald-600" />
+                      <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">FC</span>
+                    </div>
+                    <span className="text-base font-black text-emerald-600">{fc.toFixed(1)}%</span>
+                    <span className="text-[9px] text-slate-400 font-semibold mt-0.5">Field Capacity</span>
+                  </div>
+
+                  {/* Current Legend Card */}
+                  <div className="bg-blue-50/20 border border-blue-100 rounded-2xl p-3 flex flex-col items-center text-center w-full sm:w-24 md:w-28">
+                    <div className="flex items-center gap-1.5 mb-1 flex-row">
+                      <FaTint className="text-[10px] text-blue-600" />
+                      <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider ml-0.5">Current</span>
+                    </div>
+                    <span className="text-base font-black text-blue-600">
+                      {currentMoisture !== null && currentMoisture !== undefined ? `${currentMoisture.toFixed(1)}%` : "N/A"}
+                    </span>
+                    <span className="text-[9px] text-slate-400 font-semibold mt-0.5">Current Moisture</span>
                   </div>
                 </div>
               </div>
 
-              {/* Right Column: Real-Time Moisture (Sensor 1, 2, Average) */}
-              <div className="space-y-4 bg-emerald-50/20 p-5 rounded-2xl border border-emerald-100/50">
-                <h3 className="text-xs font-bold text-emerald-700/80 uppercase tracking-wider border-b border-emerald-100 pb-2 flex justify-between items-center">
-                  <span>Live Moisture Levels</span>
-                  {reading ? (
-                    <span className="text-[9px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold uppercase animate-pulse">Live</span>
-                  ) : (
-                    <span className="text-[9px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-bold uppercase">No Device</span>
-                  )}
-                </h3>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="text-center">
-                    <p className="text-[10px] text-slate-500 font-bold uppercase">Moisture 1</p>
-                    <p className="text-xl font-black text-slate-800 mt-1">
-                      {sensor1Val !== undefined && sensor1Val !== null 
-                        ? `${sensor1Val}%` 
-                        : "—"}
-                    </p>
-                    <span className="text-[9px] text-slate-400 block mt-0.5">Topsoil sensor</span>
+              {/* Dynamic Slider/Range Bar Section */}
+              <div className="relative w-full px-4 pt-10 pb-6">
+                {/* 0% and 100% Boundary Labels */}
+                <div className="absolute top-2 left-4 text-xs font-bold text-slate-400">0%</div>
+                <div className="absolute top-2 right-4 text-xs font-bold text-slate-400">100%</div>
+
+                <div className="relative w-full h-20">
+                  {/* Horizontal range bar with dynamic gradients */}
+                  <div 
+                    className="absolute top-10 left-0 right-0 h-4 rounded-full border border-slate-100/50 shadow-inner"
+                    style={{
+                      background: `linear-gradient(to right, 
+                        #fca5a5 0%, 
+                        #fca5a5 ${pwpClamped}%, 
+                        #fed7aa ${pwpClamped}%, 
+                        #fed7aa ${thresholdClamped}%, 
+                        #bbf7d0 ${thresholdClamped}%, 
+                        #bbf7d0 ${fcClamped}%, 
+                        #dbeafe ${fcClamped}%, 
+                        #dbeafe 100%)`
+                    }}
+                  />
+
+                  {/* PWP Pin */}
+                  <div 
+                    className="absolute top-1 flex flex-col items-center transition-all duration-300" 
+                    style={{ left: `${pwpClamped}%`, transform: "translateX(-50%)" }}
+                  >
+                    <div className="bg-amber-800 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-lg shadow-sm">
+                      {pwp.toFixed(1)}%
+                    </div>
+                    <div className="w-px h-8 border-l border-dashed border-amber-800/40 mt-1" />
+                    <div className="w-3.5 h-3.5 rounded-full bg-amber-800 border-2 border-white shadow-md -mt-1" />
                   </div>
-                  <div className="text-center border-x border-emerald-100/50">
-                    <p className="text-[10px] text-slate-500 font-bold uppercase">Moisture 2</p>
-                    <p className="text-xl font-black text-slate-800 mt-1">
-                      {sensor2Val !== undefined && sensor2Val !== null 
-                        ? `${sensor2Val}%` 
-                        : "—"}
-                    </p>
-                    <span className="text-[9px] text-slate-400 block mt-0.5">Rootzone sensor</span>
+
+                  {/* Threshold Pin */}
+                  <div 
+                    className="absolute top-1 flex flex-col items-center transition-all duration-300" 
+                    style={{ left: `${thresholdClamped}%`, transform: "translateX(-50%)" }}
+                  >
+                    <div className="bg-orange-500 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-lg shadow-sm">
+                      {threshold.toFixed(1)}%
+                    </div>
+                    <div className="w-px h-8 border-l border-dashed border-orange-500/40 mt-1" />
+                    <div className="w-3.5 h-3.5 rounded-full bg-orange-500 border-2 border-white shadow-md -mt-1" />
                   </div>
-                  <div className="text-center">
-                    <p className="text-[10px] text-emerald-700 font-bold uppercase">Average</p>
-                    <p className="text-xl font-black text-emerald-600 mt-1">
-                      {avgMoistureVal !== undefined && avgMoistureVal !== null 
-                        ? `${avgMoistureVal}%` 
-                        : "—"}
+
+                  {/* FC Pin */}
+                  <div 
+                    className="absolute top-1 flex flex-col items-center transition-all duration-300" 
+                    style={{ left: `${fcClamped}%`, transform: "translateX(-50%)" }}
+                  >
+                    <div className="bg-emerald-600 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-lg shadow-sm">
+                      {fc.toFixed(1)}%
+                    </div>
+                    <div className="w-px h-8 border-l border-dashed border-emerald-600/40 mt-1" />
+                    <div className="w-3.5 h-3.5 rounded-full bg-emerald-600 border-2 border-white shadow-md -mt-1" />
+                  </div>
+
+                  {/* Current Pin (with water drop badge) */}
+                  {currentMoisture !== null && currentMoisture !== undefined && (
+  <div
+    className="absolute top-10  flex flex-col items-center z-10 transition-all duration-300"
+    style={{
+      left: `${currentClamped}%`,
+      transform: "translateX(-50%)",
+    }}
+  >
+    {/* Droplet */}
+    <div className="w-7 h-7 rounded-full bg-blue-600 border-2 border-white shadow-lg flex items-center justify-center text-white">
+      <FaTint className="text-xs" />
+    </div>
+
+    {/* Dashed Line */}
+    <div className="w-px h-6 border-l border-dashed border-blue-600/50" />
+
+    {/* Label */}
+    <div className="bg-blue-600 text-white text-[10px] font-bold px-2.5 py-0.5 rounded-lg shadow-md">
+      {currentMoisture.toFixed(1)}%
+    </div>
+  </div>
+)}
+                </div>
+              </div>
+
+              {/* Four-Column Detailed Info Labels */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-6 text-center border-t border-slate-100/60 pt-6">
+                {/* PWP Labels */}
+                <div className="flex flex-col items-center">
+                  <span className="text-xs font-black text-amber-800 uppercase tracking-wider">PWP</span>
+                  <span className="text-base font-black text-slate-800 mt-1">{pwp.toFixed(1)}%</span>
+                  <span className="text-[10px] text-slate-400 font-semibold mt-1">Permanent Wilting Point</span>
+                  <span className="text-[9px] text-slate-400/80 font-medium">Plants cannot recover</span>
+                </div>
+
+                {/* Threshold Labels */}
+                <div className="flex flex-col items-center border-l border-slate-100">
+                  <span className="text-xs font-black text-orange-600 uppercase tracking-wider">Threshold</span>
+                  <span className="text-base font-black text-slate-800 mt-1">{threshold.toFixed(1)}%</span>
+                  <span className="text-[10px] text-slate-400 font-semibold mt-1">Irrigation Trigger Point</span>
+                  <span className="text-[9px] text-slate-400/80 font-medium">Start irrigation</span>
+                </div>
+
+                {/* Current Moisture Labels */}
+                <div className="flex flex-col items-center border-l border-slate-100">
+                  <span className="text-xs font-black text-blue-700 uppercase tracking-wider">Current Moisture</span>
+                  <span className="text-base font-black text-slate-800 mt-1">
+                    {currentMoisture !== null && currentMoisture !== undefined ? `${currentMoisture.toFixed(1)}%` : "—"}
+                  </span>
+                  <span className="text-[10px] text-slate-400 font-semibold mt-1">Live soil moisture</span>
+                  <span className="text-[9px] text-slate-400/80 font-medium">
+                    Mean level
+                  </span>
+                </div>
+
+                {/* FC Labels */}
+                <div className="flex flex-col items-center border-l border-slate-100">
+                  <span className="text-xs font-black text-emerald-700 uppercase tracking-wider">FC</span>
+                  <span className="text-base font-black text-slate-800 mt-1">{fc.toFixed(1)}%</span>
+                  <span className="text-[10px] text-slate-400 font-semibold mt-1">Field Capacity</span>
+                  <span className="text-[9px] text-slate-400/80 font-medium">Optimal water holding</span>
+                </div>
+              </div>
+
+              {/* Zones Legend Grid */}
+              <div className="bg-slate-50/40 border border-slate-100 p-5 rounded-3xl grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+                {/* Critical Zone Card */}
+                <div className="flex gap-3">
+                  <span className="w-2.5 h-2.5 rounded-full bg-red-400 shrink-0 mt-1" />
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400">0% - {pwp.toFixed(1)}%</p>
+                    <h4 className="text-xs font-bold text-red-500 mt-0.5">Critical Zone</h4>
+                    <p className="text-[10px] text-slate-400/80 font-medium mt-1 leading-relaxed">
+                      Severe moisture stress. Plants cannot recover.
                     </p>
-                    <span className="text-[9px] text-slate-400 block mt-0.5">Mean soil moisture</span>
+                  </div>
+                </div>
+
+                {/* Stress Zone Card */}
+                <div className="flex gap-3 sm:border-l sm:border-slate-100/50 sm:pl-4">
+                  <span className="w-2.5 h-2.5 rounded-full bg-orange-400 shrink-0 mt-1" />
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400">{pwp.toFixed(1)}% - {threshold.toFixed(1)}%</p>
+                    <h4 className="text-xs font-bold text-orange-500 mt-0.5">Stress Zone</h4>
+                    <p className="text-[10px] text-slate-400/80 font-medium mt-1 leading-relaxed">
+                      Available water is depleting. Monitor closely.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Optimal Zone Card */}
+                <div className="flex gap-3 md:border-l md:border-slate-100/50 md:pl-4">
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0 mt-1" />
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400">{threshold.toFixed(1)}% - {fc.toFixed(1)}%</p>
+                    <h4 className="text-xs font-bold text-emerald-600 mt-0.5">Optimal Zone</h4>
+                    <p className="text-[10px] text-slate-400/80 font-medium mt-1 leading-relaxed">
+                      Ideal moisture range. No irrigation needed.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Excess Zone Card */}
+                <div className="flex gap-3 sm:border-l sm:border-slate-100/50 sm:pl-4">
+                  <span className="w-2.5 h-2.5 rounded-full bg-blue-400 shrink-0 mt-1" />
+                  <div>
+                    <p className="text-[10px] font-bold text-slate-400">{fc.toFixed(1)}% - 100%</p>
+                    <h4 className="text-xs font-bold text-blue-500 mt-0.5">Excess Zone</h4>
+                    <p className="text-[10px] text-slate-400/80 font-medium mt-1 leading-relaxed">
+                      Above field capacity. Drainage may occur.
+                    </p>
                   </div>
                 </div>
               </div>
+
+              {/* Bottom Alert/Message Banner */}
+              <div className={`p-4 rounded-2xl border flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 transition duration-300 ${currentStatus.color}`}>
+                <div className="flex items-center gap-2 text-xs font-bold">
+                  <FaInfoCircle className={`text-sm ${currentStatus.iconColor} shrink-0`} />
+                  <span>{currentStatus.bannerText}</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs font-black shrink-0">
+                  <FaSeedling className={`text-sm ${currentStatus.iconColor}`} />
+                  <span>{currentStatus.label}</span>
+                </div>
+              </div>
+
             </div>
+
+            {/* Right Column: Live Sensor Speedometers (takes 1/3 width on large screens) */}
+            <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 hover:shadow-md transition duration-200 flex flex-col justify-between gap-4">
+              <div>
+                <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider mb-1 flex items-center justify-between">
+                  <span className="flex items-center gap-2">
+                    <FaTint className="text-blue-500 animate-bounce" /> Live Telemetry
+                  </span>
+                  {reading ? (
+                    <span className="text-[9px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" /> Live
+                    </span>
+                  ) : (
+                    <span className="text-[9px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider">Offline</span>
+                  )}
+                </h3>
+                <p className="text-xs text-slate-400 font-semibold mb-4">
+                  Active readings from rootzone telemetry
+                </p>
+              </div>
+
+              {/* Speedometers list */}
+              <div className="flex flex-col sm:flex-row xl:flex-col items-center justify-around gap-6 my-auto">
+                <SensorGauge
+                  value={sensor1Val}
+                  label="Moisture 1 (Topsoil)"
+                  unit="%"
+                  color="#3b82f6"
+                  size={140}
+                />
+                <SensorGauge
+                  value={sensor2Val}
+                  label="Moisture 2 (Rootzone)"
+                  unit="%"
+                  color="#6366f1"
+                  size={140}
+                />
+                <SensorGauge
+                  value={avgMoistureVal}
+                  label="Average Moisture"
+                  unit="%"
+                  color="#10b981"
+                  size={140}
+                />
+              </div>
+
+              {/* Quick helper tip */}
+              <div className="text-[10px] text-slate-400 bg-slate-50/50 border border-slate-100/50 p-2.5 rounded-xl text-center font-medium mt-2">
+                Telemetric updates occur every 10 seconds.
+              </div>
+            </div>
+
           </div>
 
           {/* ── Metric Summary Cards ─────────────────────────────────────── */}
           {(todayMetrics || todayStateData.length > 0) ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-              
+
               {/* Card 1: Crop Coefficient (Kc) */}
               <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition duration-200">
                 <div className="flex justify-between items-center mb-3">
@@ -581,7 +878,7 @@ export default function CropAnalytics() {
 
           {/* ── Graph Section ────────────────────────────────────────────── */}
           <div className="bg-white rounded-3xl border border-slate-100 shadow-sm p-6 space-y-6">
-            
+
             {/* Chart controller headers */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-100 pb-4 gap-4">
               <div>
@@ -595,41 +892,37 @@ export default function CropAnalytics() {
               <div className="flex flex-wrap bg-slate-100 p-1 rounded-2xl border border-slate-200/40 gap-1">
                 <button
                   onClick={() => setActiveTab("kc")}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                    activeTab === "kc"
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === "kc"
                       ? "bg-emerald-600 text-white shadow-sm"
                       : "text-slate-500 hover:text-slate-800"
-                  }`}
+                    }`}
                 >
                   Crop Coefficient (Kc)
                 </button>
                 <button
                   onClick={() => setActiveTab("theta")}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                    activeTab === "theta"
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === "theta"
                       ? "bg-amber-600 text-white shadow-sm"
                       : "text-slate-500 hover:text-slate-800"
-                  }`}
+                    }`}
                 >
                   Soil Moisture (Theta)
                 </button>
                 <button
                   onClick={() => setActiveTab("error")}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                    activeTab === "error"
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === "error"
                       ? "bg-rose-600 text-white shadow-sm"
                       : "text-slate-500 hover:text-slate-800"
-                  }`}
+                    }`}
                 >
                   Model Error
                 </button>
                 <button
                   onClick={() => setActiveTab("combined")}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                    activeTab === "combined"
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${activeTab === "combined"
                       ? "bg-purple-600 text-white shadow-sm"
                       : "text-slate-500 hover:text-slate-800"
-                  }`}
+                    }`}
                 >
                   Combined Overview
                 </button>
@@ -694,7 +987,7 @@ export default function CropAnalytics() {
                   ) : activeTab === "theta" ? (
                     // ── Theta Area Chart ──
                     <AreaChart
-                      data={todayStateData}
+                      data={thetaChartData}
                       margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
                     >
                       <defs>
@@ -719,7 +1012,7 @@ export default function CropAnalytics() {
                         tickLine={false}
                         axisLine={false}
                         tick={{ fill: "#94a3b8", fontSize: 11, fontWeight: "600" }}
-                        unit="%"
+                        domain={[0, (dataMax) => Math.max(0.5, Math.min(1.0, Number((dataMax + 0.05).toFixed(2))))]}
                       />
                       <Tooltip content={<TodayStateTooltip />} />
                       <Legend
@@ -821,7 +1114,7 @@ export default function CropAnalytics() {
                         axisLine={false}
                         tick={{ fill: "#3b82f6", fontSize: 11, fontWeight: "600" }}
                         label={{
-                          value: "Theta / Error (%)",
+                          value: "Theta (v/v) / Error (%)",
                           angle: 90,
                           position: "insideRight",
                           offset: 15,
@@ -853,11 +1146,11 @@ export default function CropAnalytics() {
                                   </div>
                                   <div className="flex justify-between items-center gap-4">
                                     <span className="text-slate-500 font-medium text-blue-600">Sensor theta:</span>
-                                    <span className="font-bold text-blue-600">{data.SensorTheta !== null ? `${Number(data.SensorTheta).toFixed(2)}%` : "N/A"}</span>
+                                    <span className="font-bold text-blue-600">{data.SensorTheta !== null ? Number(data.SensorTheta).toFixed(3) : "N/A"}</span>
                                   </div>
                                   <div className="flex justify-between items-center gap-4">
                                     <span className="text-slate-500 font-medium text-amber-600">Physics theta:</span>
-                                    <span className="font-bold text-amber-600">{data.PhysicsTheta !== null ? `${Number(data.PhysicsTheta).toFixed(2)}%` : "N/A"}</span>
+                                    <span className="font-bold text-amber-600">{data.PhysicsTheta !== null ? Number(data.PhysicsTheta).toFixed(3) : "N/A"}</span>
                                   </div>
                                   <div className="flex justify-between items-center gap-4">
                                     <span className="text-slate-500 font-medium text-rose-600">Error:</span>

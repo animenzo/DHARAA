@@ -208,9 +208,15 @@ const handlePumpModalConfirm = () => {
   }[deviceStatus] ?? { text: deviceStatus, cls: "text-gray-400" };
 
  const handleModeChange = async (newMode) => {
+  const shouldStopAiPump = newMode === "manual" && mode === "ai" && pumpState === 1;
+
   // Optimistically update the UI immediately.
   setMode(newMode);
   onModeChange?.(newMode === "ai");
+  if (shouldStopAiPump) {
+    setPumpState(0);
+  }
+
   try {
     await API.patch(`/iot/${farmId}/ai-mode`, {
       enabled: newMode === "ai",
@@ -219,6 +225,9 @@ const handlePumpModalConfirm = () => {
     // which the effect above picks up — no extra setMode() needed here.
   } catch (err) {
     console.error("Failed to persist AI mode:", err);
+    if (shouldStopAiPump) {
+      setPumpState(1);
+    }
     // Revert to whichever mode was active before this click.
     // Using functional form avoids stale-closure over `mode`.
     setMode(prev => {
@@ -226,6 +235,16 @@ const handlePumpModalConfirm = () => {
       onModeChange?.(revertedMode === "ai");
       return revertedMode;
     });
+    return;
+  }
+
+  if (shouldStopAiPump) {
+    try {
+      await pump.sendCommand("pump", 0, "manual", { manualOverride: true });
+    } catch (err) {
+      console.error("Failed to stop AI-controlled pump:", err);
+      setPumpState(1);
+    }
   }
 };
 
@@ -368,8 +387,8 @@ const handlePumpModalConfirm = () => {
 
             <input
               type="range"
-              min="20"
-              max="80"
+              min="0"
+              max="100"
               value={targetMoisture}
               onChange={(e) =>
                 setTargetMoisture(Number(e.target.value))
@@ -378,9 +397,9 @@ const handlePumpModalConfirm = () => {
             />
 
             <div className="flex justify-between mt-2 text-[10px] font-bold text-slate-400 uppercase">
-              <span>Dry (20%)</span>
+              <span>Dry (0%)</span>
               <span>Optimal</span>
-              <span>Wet (80%)</span>
+              <span>Wet (100%)</span>
             </div>
           </div>
 

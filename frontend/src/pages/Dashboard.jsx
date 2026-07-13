@@ -710,16 +710,16 @@ const Dashboard = () => {
             </label>
             <input
               type="range"
-              min="20"
-              max="80"
+              min="0"
+              max="100"
               value={targetMoisture}
               onChange={(e) => setTargetMoisture(Number(e.target.value))}
               className="w-full h-3 bg-slate-200 rounded-full appearance-none cursor-pointer accent-emerald-500"
             />
             <div className="flex justify-between mt-2 text-[10px] font-bold text-slate-400 uppercase">
-              <span>Dry (20%)</span>
+              <span>Dry (0%)</span>
               <span>Optimal</span>
-              <span>Wet (80%)</span>
+              <span>Wet (100%)</span>
             </div>
           </div>
           <p className="text-sm text-slate-500 text-center">
