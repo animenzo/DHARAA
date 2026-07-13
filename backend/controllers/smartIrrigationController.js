@@ -8,6 +8,7 @@ const DayForecast = require("../models/DayForecast");
 const HourlyWeatherForecast = require("../models/HourlyWeatherForecast");
 const FarmIrrigationSchedule = require("../models/FarmIrrigationSchedule");
 const IrrigationWaterRequirement = require("../models/IrrigationWaterRequirement");
+const TodayState = require("../models/TodayState");
 const { getIrrigationRecommendation } = require("../services/smartIrrigationService");
 const { manualStopExecution } = require("../services/irrigationExecutionManager");
 const {
@@ -182,23 +183,31 @@ const listIrrigationExecutions = async (req, res) => {
 
 const getSmartIrrigationResult = async (req, res) => {
   try {
-    const farm = await Farm.findOne({ _id: req.params.farmId, user: req.user.id }).select("_id name").lean();
+    const farm = await Farm.findOne({ _id: req.params.farmId, user: req.user.id })
+      .select("_id name device")
+      .populate("device", "deviceId")
+      .lean();
     if (!farm) return res.status(404).json({ error: "Farm not found." });
-    const selector = { farm: farm._id };
-    const [cropSchedule, prediction, dayForecast, hourlyForecast, schedule, waterRequirement, execution] =
+    const hardwareDeviceId = farm.device?.deviceId;
+    const selector = hardwareDeviceId
+      ? { $or: [{ farm: farm._id }, { deviceId: hardwareDeviceId }] }
+      : { farm: farm._id };
+    const [cropSchedule, prediction, dayForecast, hourlyForecast, schedule, waterRequirement, todayState, execution] =
       await Promise.all([
-        CropSchedule.findOne(selector).lean(),
-        FutureMoisturePrediction.findOne(selector).lean(),
-        DayForecast.findOne(selector).lean(),
-        HourlyWeatherForecast.findOne(selector).lean(),
-        FarmIrrigationSchedule.findOne(selector).lean(),
-        IrrigationWaterRequirement.findOne(selector).lean(),
+        CropSchedule.findOne(selector).sort({ updatedAt: -1, createdAt: -1 }).lean(),
+        FutureMoisturePrediction.findOne(selector).sort({ updatedAt: -1, createdAt: -1 }).lean(),
+        DayForecast.findOne(selector).sort({ updatedAt: -1, createdAt: -1 }).lean(),
+        HourlyWeatherForecast.findOne(selector).sort({ updatedAt: -1, createdAt: -1 }).lean(),
+        FarmIrrigationSchedule.findOne(selector).sort({ updatedAt: -1, createdAt: -1 }).lean(),
+        IrrigationWaterRequirement.findOne(selector).sort({ updatedAt: -1, createdAt: -1 }).lean(),
+        TodayState.find(selector).sort({ Date: 1, Timestamp: 1 }).limit(120).lean(),
         IrrigationExecution.findOne(selector).sort({ createdAt: -1 }).lean(),
       ]);
     return res.json({
       success: true,
       farm: { id: farm._id, name: farm.name },
       prediction: { cropSchedule, futureMoisture: prediction, dayForecast, hourlyForecast },
+      todayState,
       schedule,
       waterRequirement,
       execution,

@@ -23,7 +23,6 @@ import {
   FaMapMarkerAlt,
   FaCalendarAlt,
   FaTint,
-  FaCloudSun,
   FaInfoCircle,
   FaArrowRight,
 } from "react-icons/fa";
@@ -40,6 +39,28 @@ function toArray(value) {
 function extractList(payload, key) {
   if (Array.isArray(payload)) return payload;
   return toArray(payload?.[key]);
+}
+
+function firstArray(...values) {
+  return values.find((value) => Array.isArray(value)) || [];
+}
+
+function toNumber(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function normalizeTheta(value) {
+  const number = toNumber(value);
+  if (number === null) return null;
+  return Math.abs(number) <= 1 ? number * 100 : number;
+}
+
+function toDateKey(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "" : date.toISOString().split("T")[0];
 }
 
 // Helper to format Date for readable X-Axis
@@ -82,8 +103,8 @@ const KcTooltip = ({ active, payload }) => {
   return null;
 };
 
-// Custom tooltip for ETc & ET0 Evapotranspiration Chart
-const EtcTooltip = ({ active, payload }) => {
+// Custom tooltip for Sensor vs Physics Moisture (Theta) & Error Chart
+const TodayStateTooltip = ({ active, payload }) => {
   if (active && payload && payload.length) {
     const data = payload[0].payload;
     return (
@@ -96,22 +117,22 @@ const EtcTooltip = ({ active, payload }) => {
             day: "numeric",
           })}
         </p>
-        <div className="space-y-2">
+        <div className="space-y-1.5">
           <div className="flex justify-between items-center gap-4">
             <span className="text-slate-400 font-medium">Day After Sowing:</span>
             <span className="font-bold text-slate-700">{data.DayAfterSowing}</span>
           </div>
           {payload.map((item) => (
-            <div key={item.dataKey} className="flex justify-between items-center gap-4">
+            <div key={item.name} className="flex justify-between items-center gap-4">
               <div className="flex items-center gap-1.5">
                 <span
                   className="inline-block w-2.5 h-2.5 rounded-full"
-                  style={{ backgroundColor: item.color }}
+                  style={{ backgroundColor: item.color || item.stroke }}
                 />
                 <span className="text-slate-500 font-medium">{item.name}:</span>
               </div>
               <span className="font-bold text-slate-700">
-                {Number(item.value).toFixed(2)} mm/day
+                {Number(item.value).toFixed(2)}%
               </span>
             </div>
           ))}
@@ -126,7 +147,7 @@ export default function CropAnalytics() {
   const navigate = useNavigate();
   const [farms, setFarms] = useState([]);
   const [selectedFarm, setSelectedFarm] = useState(null);
-  const [activeTab, setActiveTab] = useState("kc"); // "kc" | "etc" | "combined"
+  const [activeTab, setActiveTab] = useState("kc"); // "kc" | "theta" | "error" | "combined"
 
   const farmId = selectedFarm?._id || null;
 
@@ -165,7 +186,7 @@ export default function CropAnalytics() {
     loadFarms();
   }, []);
 
-  // Fetch Smart Irrigation Results (which contains future moisture and Kc/ETc prediction details)
+  // Fetch Smart Irrigation Results (which contains crop schedule and today-state analytics)
   const { data: smartResult, isLoading: resultsLoading } = useQuery({
     queryKey: ["smartIrrigationResult", farmId],
     queryFn: () => getSmartIrrigationResult(farmId),
@@ -182,26 +203,130 @@ export default function CropAnalytics() {
 
   // Extract prediction data
   const predictionsData = useMemo(() => {
-    const predictions = smartResult?.prediction?.futureMoisture?.predictions;
-    if (!predictions || !Array.isArray(predictions)) return [];
+    const predictions = firstArray(
+      smartResult?.prediction?.futureMoisture?.predictions,
+      smartResult?.prediction?.futureMoisture,
+      smartResult?.futureMoisture?.predictions,
+      smartResult?.futureMoisture
+    );
     
     // Sort by date to make sure the graph is ordered correctly
     return [...predictions].sort((a, b) => new Date(a.Date) - new Date(b.Date));
   }, [smartResult]);
 
+  // Extract Crop Coefficient Growth Schedule (180 days)
+  const kcScheduleData = useMemo(() => {
+    const schedule = firstArray(
+      smartResult?.prediction?.cropSchedule?.schedule,
+      smartResult?.prediction?.cropSchedule,
+      smartResult?.cropSchedule?.schedule,
+      smartResult?.cropSchedule
+    );
+    return [...schedule]
+      .sort((a, b) => new Date(a.Date) - new Date(b.Date))
+      .map((item) => {
+        const Date = toDateKey(item.Date);
+        const Kc = toNumber(item.Kc);
+        return Date && Kc !== null
+          ? {
+              ...item,
+              Date,
+              Kc,
+              DayAfterSowing: toNumber(item.DayAfterSowing),
+            }
+          : null;
+      })
+      .filter(Boolean);
+  }, [smartResult]);
+
+  // Extract Sensor vs Physics moisture and error values from TodayState
+  const todayStateData = useMemo(() => {
+    const todayState = firstArray(
+      smartResult?.todayState,
+      smartResult?.today_state,
+      smartResult?.prediction?.todayState,
+      smartResult?.prediction?.today_state
+    );
+    
+    return [...todayState]
+      .sort((a, b) => new Date(a.Timestamp || a.Date) - new Date(b.Timestamp || b.Date))
+      .map((item) => {
+        const Date = item.Timestamp || item.Date;
+        const sensorTheta = normalizeTheta(
+          item.Sensor_Moisture ?? item.SensorTheta ?? item.sensorTheta ?? item.sensor_moisture
+        );
+        const physicsTheta = normalizeTheta(
+          item.Physics_Moisture ?? item.PhysicsTheta ?? item.physicsTheta ?? item.physics_moisture
+        );
+        const errorPercent = normalizeTheta(item.Error ?? item.ErrorPercent ?? item.error);
+        
+        return {
+          ...item,
+          Date,
+          DayAfterSowing: toNumber(item.DayAfterSowing),
+          Kc: toNumber(item.Kc),
+          SensorTheta: sensorTheta,
+          PhysicsTheta: physicsTheta,
+          ErrorPercent: errorPercent,
+        };
+      })
+      .filter((item) => item.Date && (item.SensorTheta !== null || item.PhysicsTheta !== null || item.ErrorPercent !== null));
+  }, [smartResult]);
+
+  // Merge Kc Schedule data and TodayState data for Combined Multi-axis Chart
+  const combinedChartData = useMemo(() => {
+    const merged = {};
+    
+    kcScheduleData.forEach((item) => {
+      const d = item.Date;
+      merged[d] = {
+        Date: d,
+        DayAfterSowing: item.DayAfterSowing,
+        Kc: item.Kc,
+        SensorTheta: null,
+        PhysicsTheta: null,
+        ErrorPercent: null,
+      };
+    });
+    
+    todayStateData.forEach((item) => {
+      const d = new Date(item.Date).toISOString().split("T")[0];
+      if (!merged[d]) {
+        merged[d] = {
+          Date: d,
+          DayAfterSowing: item.DayAfterSowing,
+          Kc: item.Kc,
+          SensorTheta: item.SensorTheta,
+          PhysicsTheta: item.PhysicsTheta,
+          ErrorPercent: item.ErrorPercent,
+        };
+      } else {
+        merged[d].SensorTheta = item.SensorTheta;
+        merged[d].PhysicsTheta = item.PhysicsTheta;
+        merged[d].ErrorPercent = item.ErrorPercent;
+        if (item.Kc !== null && item.Kc !== undefined) {
+          merged[d].Kc = item.Kc;
+        }
+      }
+    });
+    
+    return Object.values(merged).sort((a, b) => new Date(a.Date) - new Date(b.Date));
+  }, [kcScheduleData, todayStateData]);
+
   // Today's metrics from predictions array
   const todayMetrics = useMemo(() => {
-    if (!predictionsData.length) return null;
+    const source = kcScheduleData.length ? kcScheduleData : predictionsData;
+    if (!source.length) return null;
     
     const todayStr = new Date().toDateString();
     
     // Attempt to match today's date, or fallback to the first element (usually represents nearest/today prediction)
-    let match = predictionsData.find((p) => new Date(p.Date).toDateString() === todayStr);
+    let match = source.find((p) => new Date(p.Date).toDateString() === todayStr);
     if (!match) {
-      match = predictionsData[0];
+      match = source[0];
     }
     return match;
-  }, [predictionsData]);
+  }, [kcScheduleData, predictionsData]);
 
   // Loading state skeleton
   const renderSkeleton = () => (
@@ -229,7 +354,7 @@ export default function CropAnalytics() {
             Crop Analytics
           </h1>
           <p className="text-xs text-slate-400 font-semibold mt-1">
-            Visualise crop coefficients and actual evapotranspiration projections
+            Visualise crop coefficients, soil moisture theta levels, and model error trends
           </p>
         </div>
 
@@ -370,7 +495,7 @@ export default function CropAnalytics() {
           </div>
 
           {/* ── Metric Summary Cards ─────────────────────────────────────── */}
-          {predictionsData.length > 0 && todayMetrics ? (
+          {(todayMetrics || todayStateData.length > 0) ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
               
               {/* Card 1: Crop Coefficient (Kc) */}
@@ -383,7 +508,9 @@ export default function CropAnalytics() {
                 </div>
                 <div>
                   <p className="text-3xl font-black text-slate-800">
-                    {Number(todayMetrics.Kc).toFixed(2)}
+                    {todayMetrics?.Kc !== null && todayMetrics?.Kc !== undefined
+                      ? Number(todayMetrics.Kc).toFixed(2)
+                      : "N/A"}
                   </p>
                   <p className="text-[10px] text-slate-400 mt-1 font-semibold flex items-center gap-1">
                     <FaInfoCircle className="text-emerald-500" /> Today's crop transpiration multiplier
@@ -391,38 +518,42 @@ export default function CropAnalytics() {
                 </div>
               </div>
 
-              {/* Card 2: Evapotranspiration (ETc) */}
+              {/* Card 2: Latest Sensor Theta */}
               <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition duration-200">
                 <div className="flex justify-between items-center mb-3">
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">ETc Demand</span>
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Sensor Theta</span>
                   <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
                     <FaTint />
                   </div>
                 </div>
                 <div>
                   <p className="text-3xl font-black text-slate-800">
-                    {Number(todayMetrics.ETc).toFixed(1)} <span className="text-sm font-bold text-slate-500">mm/day</span>
+                    {todayStateData.at(-1)?.SensorTheta !== null && todayStateData.at(-1)?.SensorTheta !== undefined
+                      ? Number(todayStateData.at(-1).SensorTheta).toFixed(1)
+                      : "N/A"} <span className="text-sm font-bold text-slate-500">%</span>
                   </p>
                   <p className="text-[10px] text-slate-400 mt-1 font-semibold flex items-center gap-1">
-                    <FaInfoCircle className="text-blue-500" /> Realised water consumption demand
+                    <FaInfoCircle className="text-blue-500" /> Latest measured soil theta
                   </p>
                 </div>
               </div>
 
-              {/* Card 3: Reference Evapotranspiration (ET0) */}
+              {/* Card 3: Latest Model Error */}
               <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition duration-200">
                 <div className="flex justify-between items-center mb-3">
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Reference ET0</span>
-                  <div className="p-2 rounded-xl bg-amber-50 text-amber-600">
-                    <FaCloudSun />
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Theta Error</span>
+                  <div className="p-2 rounded-xl bg-rose-50 text-rose-600">
+                    <FaChartLine />
                   </div>
                 </div>
                 <div>
                   <p className="text-3xl font-black text-slate-800">
-                    {Number(todayMetrics.ET0).toFixed(1)} <span className="text-sm font-bold text-slate-500">mm/day</span>
+                    {todayStateData.at(-1)?.ErrorPercent !== null && todayStateData.at(-1)?.ErrorPercent !== undefined
+                      ? Number(todayStateData.at(-1).ErrorPercent).toFixed(1)
+                      : "N/A"} <span className="text-sm font-bold text-slate-500">%</span>
                   </p>
                   <p className="text-[10px] text-slate-400 mt-1 font-semibold flex items-center gap-1">
-                    <FaInfoCircle className="text-amber-500" /> Atmospheric water loss rate
+                    <FaInfoCircle className="text-rose-500" /> Sensor minus physics moisture
                   </p>
                 </div>
               </div>
@@ -437,7 +568,7 @@ export default function CropAnalytics() {
                 </div>
                 <div>
                   <p className="text-3xl font-black text-slate-800">
-                    {todayMetrics.DayAfterSowing} <span className="text-sm font-bold text-slate-500">DAS</span>
+                    {todayMetrics?.DayAfterSowing ?? todayStateData.at(-1)?.DayAfterSowing ?? "N/A"} <span className="text-sm font-bold text-slate-500">DAS</span>
                   </p>
                   <p className="text-[10px] text-slate-400 mt-1 font-semibold flex items-center gap-1">
                     <FaInfoCircle className="text-purple-500" /> Days after sowing progress
@@ -461,7 +592,7 @@ export default function CropAnalytics() {
               </div>
 
               {/* Tabs selector */}
-              <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200/40">
+              <div className="flex flex-wrap bg-slate-100 p-1 rounded-2xl border border-slate-200/40 gap-1">
                 <button
                   onClick={() => setActiveTab("kc")}
                   className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
@@ -473,14 +604,24 @@ export default function CropAnalytics() {
                   Crop Coefficient (Kc)
                 </button>
                 <button
-                  onClick={() => setActiveTab("etc")}
+                  onClick={() => setActiveTab("theta")}
                   className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
-                    activeTab === "etc"
-                      ? "bg-blue-600 text-white shadow-sm"
+                    activeTab === "theta"
+                      ? "bg-amber-600 text-white shadow-sm"
                       : "text-slate-500 hover:text-slate-800"
                   }`}
                 >
-                  Water Loss (ETc / ET0)
+                  Soil Moisture (Theta)
+                </button>
+                <button
+                  onClick={() => setActiveTab("error")}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all ${
+                    activeTab === "error"
+                      ? "bg-rose-600 text-white shadow-sm"
+                      : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  Model Error
                 </button>
                 <button
                   onClick={() => setActiveTab("combined")}
@@ -497,12 +638,12 @@ export default function CropAnalytics() {
 
             {/* Graphs container */}
             <div className="h-[360px] w-full min-h-[300px]">
-              {predictionsData.length > 0 ? (
+              {kcScheduleData.length > 0 || predictionsData.length > 0 || todayStateData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   {activeTab === "kc" ? (
                     // ── KC Area Chart ──
                     <AreaChart
-                      data={predictionsData}
+                      data={kcScheduleData}
                       margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
                     >
                       <defs>
@@ -550,18 +691,18 @@ export default function CropAnalytics() {
                         />
                       )}
                     </AreaChart>
-                  ) : activeTab === "etc" ? (
-                    // ── ETc / ET0 Dual Area Chart ──
+                  ) : activeTab === "theta" ? (
+                    // ── Theta Area Chart ──
                     <AreaChart
-                      data={predictionsData}
+                      data={todayStateData}
                       margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
                     >
                       <defs>
-                        <linearGradient id="etcGradient" x1="0" y1="0" x2="0" y2="1">
+                        <linearGradient id="thetaGradient" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.25} />
                           <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
                         </linearGradient>
-                        <linearGradient id="et0Gradient" x1="0" y1="0" x2="0" y2="1">
+                        <linearGradient id="physicsThetaGradient" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#f59e0b" stopOpacity={0.15} />
                           <stop offset="95%" stopColor="#f59e0b" stopOpacity={0} />
                         </linearGradient>
@@ -578,9 +719,9 @@ export default function CropAnalytics() {
                         tickLine={false}
                         axisLine={false}
                         tick={{ fill: "#94a3b8", fontSize: 11, fontWeight: "600" }}
-                        unit=" mm"
+                        unit="%"
                       />
-                      <Tooltip content={<EtcTooltip />} />
+                      <Tooltip content={<TodayStateTooltip />} />
                       <Legend
                         verticalAlign="top"
                         height={36}
@@ -589,42 +730,66 @@ export default function CropAnalytics() {
                       />
                       <Area
                         type="monotone"
-                        dataKey="ETc"
-                        name="Crop Evapotranspiration (ETc)"
+                        dataKey="SensorTheta"
+                        name="Sensor Theta"
                         stroke="#3b82f6"
                         strokeWidth={3}
                         fillOpacity={1}
-                        fill="url(#etcGradient)"
+                        fill="url(#thetaGradient)"
                       />
                       <Area
                         type="monotone"
-                        dataKey="ET0"
-                        name="Reference Evapotranspiration (ET0)"
+                        dataKey="PhysicsTheta"
+                        name="Physics Theta"
                         stroke="#f59e0b"
                         strokeWidth={2}
                         strokeDasharray="4 4"
                         fillOpacity={1}
-                        fill="url(#et0Gradient)"
+                        fill="url(#physicsThetaGradient)"
                       />
-                      {todayMetrics && (
-                        <ReferenceLine
-                          x={todayMetrics.Date}
-                          stroke="#3b82f6"
-                          strokeDasharray="3 3"
-                          label={{
-                            value: "Today",
-                            position: "top",
-                            fill: "#3b82f6",
-                            fontSize: 10,
-                            fontWeight: "bold",
-                          }}
-                        />
-                      )}
+                    </AreaChart>
+                  ) : activeTab === "error" ? (
+                    // ── Error Area Chart ──
+                    <AreaChart
+                      data={todayStateData}
+                      margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                    >
+                      <defs>
+                        <linearGradient id="errorGradient" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#e11d48" stopOpacity={0.22} />
+                          <stop offset="95%" stopColor="#e11d48" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                      <XAxis
+                        dataKey="Date"
+                        tickFormatter={formatChartDate}
+                        tickLine={false}
+                        axisLine={false}
+                        tick={{ fill: "#94a3b8", fontSize: 11, fontWeight: "600" }}
+                      />
+                      <YAxis
+                        tickLine={false}
+                        axisLine={false}
+                        tick={{ fill: "#94a3b8", fontSize: 11, fontWeight: "600" }}
+                        unit="%"
+                      />
+                      <Tooltip content={<TodayStateTooltip />} />
+                      <ReferenceLine y={0} stroke="#94a3b8" strokeDasharray="3 3" />
+                      <Area
+                        type="monotone"
+                        dataKey="ErrorPercent"
+                        name="Theta Error"
+                        stroke="#e11d48"
+                        strokeWidth={3}
+                        fillOpacity={1}
+                        fill="url(#errorGradient)"
+                      />
                     </AreaChart>
                   ) : (
                     // ── Combined Multiaxis Line Chart ──
                     <LineChart
-                      data={predictionsData}
+                      data={combinedChartData}
                       margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
@@ -656,7 +821,7 @@ export default function CropAnalytics() {
                         axisLine={false}
                         tick={{ fill: "#3b82f6", fontSize: 11, fontWeight: "600" }}
                         label={{
-                          value: "Water (mm/day)",
+                          value: "Theta / Error (%)",
                           angle: 90,
                           position: "insideRight",
                           offset: 15,
@@ -687,12 +852,16 @@ export default function CropAnalytics() {
                                     <span className="font-bold text-emerald-600">{Number(data.Kc).toFixed(2)}</span>
                                   </div>
                                   <div className="flex justify-between items-center gap-4">
-                                    <span className="text-slate-500 font-medium text-blue-600">ETc:</span>
-                                    <span className="font-bold text-blue-600">{Number(data.ETc).toFixed(2)} mm</span>
+                                    <span className="text-slate-500 font-medium text-blue-600">Sensor theta:</span>
+                                    <span className="font-bold text-blue-600">{data.SensorTheta !== null ? `${Number(data.SensorTheta).toFixed(2)}%` : "N/A"}</span>
                                   </div>
                                   <div className="flex justify-between items-center gap-4">
-                                    <span className="text-slate-500 font-medium text-amber-600">ET0:</span>
-                                    <span className="font-bold text-amber-650">{Number(data.ET0).toFixed(2)} mm</span>
+                                    <span className="text-slate-500 font-medium text-amber-600">Physics theta:</span>
+                                    <span className="font-bold text-amber-600">{data.PhysicsTheta !== null ? `${Number(data.PhysicsTheta).toFixed(2)}%` : "N/A"}</span>
+                                  </div>
+                                  <div className="flex justify-between items-center gap-4">
+                                    <span className="text-slate-500 font-medium text-rose-600">Error:</span>
+                                    <span className="font-bold text-rose-600">{data.ErrorPercent !== null ? `${Number(data.ErrorPercent).toFixed(2)}%` : "N/A"}</span>
                                   </div>
                                 </div>
                               </div>
@@ -719,8 +888,8 @@ export default function CropAnalytics() {
                       <Line
                         yAxisId="right"
                         type="monotone"
-                        dataKey="ETc"
-                        name="Crop Evapotranspiration (ETc)"
+                        dataKey="SensorTheta"
+                        name="Sensor Theta"
                         stroke="#3b82f6"
                         strokeWidth={3}
                         dot={false}
@@ -728,11 +897,20 @@ export default function CropAnalytics() {
                       <Line
                         yAxisId="right"
                         type="monotone"
-                        dataKey="ET0"
-                        name="Reference Evapotranspiration (ET0)"
+                        dataKey="PhysicsTheta"
+                        name="Physics Theta"
                         stroke="#f59e0b"
                         strokeWidth={1.5}
                         strokeDasharray="4 4"
+                        dot={false}
+                      />
+                      <Line
+                        yAxisId="right"
+                        type="monotone"
+                        dataKey="ErrorPercent"
+                        name="Theta Error"
+                        stroke="#e11d48"
+                        strokeWidth={2}
                         dot={false}
                       />
                     </LineChart>
@@ -757,8 +935,8 @@ export default function CropAnalytics() {
               )}
             </div>
 
-            {/* Bottom info section explaining what Kc and ETc are */}
-            {predictionsData.length > 0 && (
+            {/* Bottom info section explaining the visible analytics */}
+            {(kcScheduleData.length > 0 || todayStateData.length > 0) && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6 bg-slate-50 p-5 rounded-2xl border border-slate-100">
                 <div className="text-xs leading-relaxed text-slate-500">
                   <h4 className="font-bold text-slate-700 flex items-center gap-1.5 mb-1.5">
@@ -766,16 +944,16 @@ export default function CropAnalytics() {
                     What is Crop Coefficient (Kc)?
                   </h4>
                   <p>
-                    The Crop Coefficient ($K_c$) represents the ratio of crop evapotranspiration to reference evapotranspiration. It represents the structural and physiological differences between the crop and a standard reference grass surface, changing dynamically as the crop grows through initial, mid, and late development stages.
+                    The Crop Coefficient shows how crop water demand changes across growth stages. This graph is generated from the saved crop schedule document for the selected farm.
                   </p>
                 </div>
                 <div className="text-xs leading-relaxed text-slate-500">
                   <h4 className="font-bold text-slate-700 flex items-center gap-1.5 mb-1.5">
                     <span className="inline-block w-2 h-2 rounded-full bg-blue-500" />
-                    What is Crop Evapotranspiration (ETc)?
+                    What are Theta and Error?
                   </h4>
                   <p>
-                    Crop Evapotranspiration ($ET_c$) measures the actual water evaporated from the soil surface and transpired by the crop canopy per day. Computed as $ET_c = K_c \times ET_0$, it guides precise smart irrigation recommendations by calculating exactly how much water the crop has consumed.
+                    Theta compares sensor moisture against the physics model from the today-state table. Error is the difference between those two values, shown as a percentage trend.
                   </p>
                 </div>
               </div>

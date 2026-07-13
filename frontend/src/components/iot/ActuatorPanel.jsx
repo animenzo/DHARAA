@@ -334,7 +334,7 @@ const handlePumpModalConfirm = () => {
         />
         <div className="w-px bg-gray-100 self-stretch" />
 {/* Physical button status */}
-<div className={`mb-4 flex items-center gap-2 px-3 py-2 rounded-xl border text-xs font-medium
+<div className={`mb-4 flex items-center gap-2 px-1 py-1 rounded-xl border text-xs font-medium
   ${physicalBtn === 1
     ? "bg-emerald-50 border-emerald-200 text-emerald-700"
     : "bg-gray-50 border-gray-200 text-gray-400"
@@ -343,7 +343,7 @@ const handlePumpModalConfirm = () => {
     ${physicalBtn === 1 ? "bg-emerald-500 animate-pulse" : "bg-gray-300"}`}
   />
   <span>
-    Physical Button:&nbsp;
+    Phy Button:&nbsp;
     <strong>{physicalBtn === 1 ? "ON" : "OFF"}</strong>
   </span>
 </div>
