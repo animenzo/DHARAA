@@ -381,7 +381,7 @@ if (latest?.aiMode === true) {
                 )}
               </div>
 
-              <button
+              {/* <button
                 onClick={() => {
                   fetchSchedules();
                 }}
@@ -389,7 +389,7 @@ if (latest?.aiMode === true) {
                 disabled={loading}
               >
                 <FaSync className={loading ? "animate-spin" : ""} />
-              </button>
+              </button> */}
             </div>
           </div>
         </div>

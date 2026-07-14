@@ -40,9 +40,9 @@ export default function SmartIrrigationCard({ result, farmName, compact = false 
           <p className="text-xs font-bold uppercase tracking-wider text-emerald-600">AI generated schedule</p>
           <h3 className="text-lg font-bold text-slate-800">{farmName || "Smart irrigation"}</h3>
         </div>
-        <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold uppercase text-emerald-700">
+        {/* <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold uppercase text-emerald-700">
           {execution?.status || schedule?.status || "Unknown"}
-        </span>
+        </span> */}
       </div>
       <div className={`grid ${compact ? "grid-cols-2" : "grid-cols-2 md:grid-cols-3"} gap-3`}>
         {stats.map(([Icon, label, display]) => (
