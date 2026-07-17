@@ -208,7 +208,8 @@ const handlePumpModalConfirm = () => {
   }[deviceStatus] ?? { text: deviceStatus, cls: "text-gray-400" };
 
  const handleModeChange = async (newMode) => {
-  const shouldStopAiPump = newMode === "manual" && mode === "ai" && pumpState === 1;
+  const isPumpRunning = Number(pumpState) === 1;
+  const shouldStopAiPump = newMode === "manual" && mode === "ai" && isPumpRunning;
 
   // Optimistically update the UI immediately.
   setMode(newMode);

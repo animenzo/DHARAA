@@ -272,8 +272,8 @@ export default function IoTDashboard() {
       list.push("Device Offline");
     }
 
-    if (latest?.waterLevel !== undefined &&
-      latest.waterLevel < 0.5) {
+    if (latest?.waterLevelPercent !== undefined &&
+      latest.waterLevelPercent < 10) {
       list.push("Low Water Level");
     }
 
