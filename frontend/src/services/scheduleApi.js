@@ -1,6 +1,6 @@
 // Add these to your API object or service file
 import API from "./api"; // Adjust the path as needed
-export const getFarms = async () => (await API.get('/farms')).data;
+export const getFarms = async () => (await API.get('/farms/farm')).data;
 export const getMySchedules = async () => {
     const response = await API.get('/schedules/schedule');
     return response.data;

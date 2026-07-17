@@ -21,7 +21,8 @@ function ActuatorToggle({
 }) {
   const { status, error, commandId, value: cmdValue } = commandState;
   const isWaiting = status === "pending";
-  const nextValue = currentValue === 1 ? 0 : 1;
+  const isActive = Number(currentValue) === 1;
+  const nextValue = isActive ? 0 : 1;
 
   const theme = actuator === "pump"
     ? { on: "bg-emerald-500 hover:bg-emerald-600", indicator: "bg-emerald-500", badge: "bg-emerald-50 text-emerald-700 border-emerald-200" }
@@ -29,12 +30,12 @@ function ActuatorToggle({
 
   const offLabels = { pump: "Turn OFF", valve: "Close" };
   const onLabels = { pump: "Turn ON", valve: "Open" };
-  const stateLabel = currentValue === 1
+  const stateLabel = isActive
     ? { pump: "ON", valve: "OPEN" }[actuator]
     : { pump: "OFF", valve: "CLOSED" }[actuator];
 
   let btnClass = "";
-  let btnText = currentValue === 1 ? offLabels[actuator] : onLabels[actuator];
+  let btnText = isActive ? offLabels[actuator] : onLabels[actuator];
 
   if (disabled) {
   btnClass = "bg-gray-100 text-gray-400 cursor-not-allowed border-gray-200";
@@ -42,7 +43,7 @@ function ActuatorToggle({
 } else if (isWaiting || isLoading) {
     btnClass = "bg-blue-50 text-blue-600 border-blue-200 cursor-wait";
     btnText = "Sending…";
-  } else if (currentValue === 1) {
+  } else if (isActive) {
     btnClass = "bg-red-500 hover:bg-red-600 active:bg-red-700 text-white border-transparent shadow-sm";
   } else {
     btnClass = `${theme.on} active:opacity-80 text-white border-transparent shadow-sm`;
@@ -74,8 +75,8 @@ function ActuatorToggle({
           <span className="text-base">{icon}</span>
           <span className="text-sm font-semibold text-gray-700">{label}</span>
         </div>
-        <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${currentValue === 1 ? theme.badge : "bg-gray-100 text-gray-500 border-gray-200"}`}>
-          {currentValue === 1 ? `● ${stateLabel}` : `○ ${stateLabel}`}
+        <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${isActive ? theme.badge : "bg-gray-100 text-gray-500 border-gray-200"}`}>
+          {isActive ? `● ${stateLabel}` : `○ ${stateLabel}`}
         </span>
       </div>
 
@@ -135,8 +136,9 @@ export default function ActuatorPanel({
   const [mode, setMode] = useState("manual");
   const [pumpState, setPumpState] = useState(latest?.pump ?? 0);
   const { socket, isRoomJoined } = useSocket();
+  const isPumpRunning = Number(pumpState) === 1;
 
-  const isDisabled = !isOnline || !farmId || mode === "ai" || physicalBtn === 1;
+  const isDisabled = !isOnline || !farmId || physicalBtn === 1 || (mode === "ai" && !isPumpRunning);
  
   const pump = useCommandControl(farmId);
   
@@ -208,7 +210,6 @@ const handlePumpModalConfirm = () => {
   }[deviceStatus] ?? { text: deviceStatus, cls: "text-gray-400" };
 
  const handleModeChange = async (newMode) => {
-  const isPumpRunning = Number(pumpState) === 1;
   const shouldStopAiPump = newMode === "manual" && mode === "ai" && isPumpRunning;
 
   // Optimistically update the UI immediately.

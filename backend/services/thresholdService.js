@@ -93,22 +93,22 @@ const moisture = reading.avgMoisture;
   }
 
   // ── Water level ────────────────────────────────────────────────────────────
-  if (reading.waterLevel != null) {
-    if (reading.waterLevel <= THRESHOLDS.waterLevel.critical.value) {
+  if (reading.waterLevelPercent != null) {
+    if (reading.waterLevelPercent <= THRESHOLDS.waterLevel.critical.value) {
       alerts.push({
         type:     THRESHOLDS.waterLevel.critical.type,
         severity: THRESHOLDS.waterLevel.critical.severity,
         title:    "🚨 Critical: Water tank nearly empty",
-        message:  `Water tank level is at ${reading.waterLevel}% — refill immediately.`,
-        context:  { sensor: "waterLevel", value: reading.waterLevel, threshold: THRESHOLDS.waterLevel.critical.value },
+        message:  `Water tank level is at ${reading.waterLevelPercent}% — refill immediately.`,
+        context:  { sensor: "waterLevelPercent", value: reading.waterLevelPercent, threshold: THRESHOLDS.waterLevel.critical.value },
       });
-    } else if (reading.waterLevel <= THRESHOLDS.waterLevel.low.value) {
+    } else if (reading.waterLevelPercent <= THRESHOLDS.waterLevel.low.value) {
       alerts.push({
         type:     THRESHOLDS.waterLevel.low.type,
         severity: THRESHOLDS.waterLevel.low.severity,
         title:    "⚠️  Water tank level is low",
-        message:  `Water tank is at ${reading.waterLevel}% — plan a refill soon.`,
-        context:  { sensor: "waterLevel", value: reading.waterLevel, threshold: THRESHOLDS.waterLevel.low.value },
+        message:  `Water tank is at ${reading.waterLevelPercent}% — plan a refill soon.`,
+        context:  { sensor: "waterLevelPercent", value: reading.waterLevelPercent, threshold: THRESHOLDS.waterLevel.low.value },
       });
     }
   }
