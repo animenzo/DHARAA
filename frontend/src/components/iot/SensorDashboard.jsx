@@ -55,16 +55,16 @@ const SENSOR_CARDS = [
   //   borderColor: "border-violet-200",
   //   format: (v) => (v == null ? null : v === 1 ? "Open" : "Closed"),
   // },
-  {
-  key:         "pumpSource",
-  label:       "Pump Source",
-  unit:        "",
-  icon:        "⚡",
-  color:       "bg-emerald-50",
-  textColor:   "text-emerald-700",
-  borderColor: "border-emerald-200",
-  format: (v) => v || "OFF",
-},
+//   {
+//   key:         "pumpSource",
+//   label:       "Pump Source",
+//   unit:        "",
+//   icon:        "⚡",
+//   color:       "bg-emerald-50",
+//   textColor:   "text-emerald-700",
+//   borderColor: "border-emerald-200",
+//   format: (v) => v || "OFF",
+// },
 ];
 
 // ─── Gauge config ─────────────────────────────────────────────────────────────
