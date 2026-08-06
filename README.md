@@ -1,4 +1,4 @@
-# DHARAA / CropSense
+# DHARAA
 
 Dynamic Hydrological Agriculture Resource Allocation and Automation
 
@@ -152,12 +152,12 @@ Create `backend/.env`:
 
 ```env
 PORT=5000
-MONGO_URI=mongodb://127.0.0.1:27017/cropsense
+MONGO_URI=
 JWT_SECRET=replace-with-a-strong-secret
 CLIENT_URL=http://localhost:5173
 
 MQTT_BROKER_URL=mqtt://localhost:1883
-MQTT_CLIENT_ID=cropsense_backend_server
+MQTT_CLIENT_ID=backend_server
 MQTT_USERNAME=
 MQTT_PASSWORD=
 MQTT_OFFLINE_THRESHOLD_MINUTES=5
